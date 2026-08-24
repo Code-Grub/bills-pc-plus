@@ -211,11 +211,15 @@ return function(mod)
     -- Right end of the HP row: the shiny mark, then the status condition.
     -- Both are storage facts the vanilla PC never showed -- a mon keeps its
     -- status through storage, and a shiny is invisible until you already
-    -- know its DVs.  The mark is an asterisk rather than a star because the
-    -- text renders through the font's own glyph set, and "*" is guaranteed
-    -- in it.  "OK" is the no-condition value, not worth ink.
+    -- know its DVs.  The mark is a drawn diamond rather than a text glyph:
+    -- the font carries no star, and a filled shape reads as a sparkle at
+    -- this resolution the way the cursor's filled stubs do.  "OK" is the
+    -- no-condition value, not worth ink.
     if Stats.isShiny(mon.dvs) then
-      Font.draw("*", 120, y + row)
+      local mx, my = 120, y + row + 3
+      love.graphics.rectangle("fill", mx + 2, my, 1, 1)
+      love.graphics.rectangle("fill", mx, my + 1, 5, 1)
+      love.graphics.rectangle("fill", mx + 2, my + 2, 1, 1)
     end
     if mon.status and mon.status ~= "OK" then
       Font.draw(mon.status, 128, y + row)

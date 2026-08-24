@@ -788,8 +788,20 @@ Font.draw = function(text, x, ty)
   texts[#texts + 1] = { text = tostring(text), x = x, y = ty }
   return realDraw(text, x, ty)
 end
+-- the shiny mark is a drawn diamond on the HP row, not text: three small
+-- fills around x=120, y=96..101 (the cursor's stubs live on the grid, well
+-- above this row)
+local marks = {}
+local realRect = gfx.rectangle
+gfx.rectangle = function(mode, x, y2, w, h)
+  if mode == "fill" and x >= 118 and x <= 126 and y2 >= 90 and y2 <= 110 then
+    marks[#marks + 1] = { x = x, y = y2 }
+  end
+  return realRect(mode, x, y2, w, h)
+end
 stripGrid:draw()
 Font.draw = realDraw
+gfx.rectangle = realRect
 
 local function drew(t)
   for _, d in ipairs(texts) do
@@ -799,20 +811,28 @@ local function drew(t)
 end
 T.check(drew("NORMAL/FLYING") ~= nil, "both types print on one slash-joined line")
 T.check(drew("PAR") ~= nil, "the status condition prints")
-T.check(drew("*") ~= nil, "a shiny DV spread prints the shiny mark")
+T.eq(#marks, 3, "a shiny DV spread draws the three-stroke diamond mark")
 
 -- a plain mon draws the type line but neither mark
 stripGrid.session.sparse[1][1] = monOfSpecies("FIXMON_A", 5)
 stripGrid.counter = 0
 texts = {}
+marks = {}
 Font.draw = function(text, x, ty)
   texts[#texts + 1] = { text = tostring(text), x = x, y = ty }
   return realDraw(text, x, ty)
 end
+gfx.rectangle = function(mode, x, y2, w, h)
+  if mode == "fill" and x >= 118 and x <= 126 and y2 >= 90 and y2 <= 110 then
+    marks[#marks + 1] = { x = x, y = y2 }
+  end
+  return realRect(mode, x, y2, w, h)
+end
 stripGrid:draw()
 Font.draw = realDraw
+gfx.rectangle = realRect
 T.check(drew("NORMAL/FLYING") ~= nil, "types still print for a plain mon")
-T.check(drew("*") == nil, "no shiny mark without the DV spread")
+T.eq(#marks, 0, "no shiny mark without the DV spread")
 T.check(drew("PAR") == nil, "no status without a condition")
 
 -- and in deposit mode the type line stays hidden under box C
