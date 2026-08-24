@@ -85,7 +85,6 @@ return function(mod)
 
   local function drawHeader(self)
     local n = self.session.save.currentBox
-    local mons = self.session:count()
     if self.mode == "deposit" then
       -- Vertical arrows signal that up/down now page the destination box
       -- instead of the horizontal grid-cursor paging.  Drawn as a matched
@@ -94,14 +93,9 @@ return function(mod)
       -- glyphs: the font has a down marker but no up companion, and two
       -- shapes from the same hand read cleaner than one glyph and one
       -- hand-drawn cousin.  Same school as the cursor stubs and the shiny
-      -- mark -- fills on whole pixels.
-      --
-      -- The count hugs the label at a 2px gap and keeps its capacity
-      -- whenever the pair stays inside the box window; a wide label (a
-      -- two-digit box) leaves less than the full "n/20" needs, so that
-      -- one case shows just the count rather than cross the divider.
-      local label = ("BOX%d"):format(n)
-      Font.draw(label, 16, Layout.HEADER_Y)
+      -- mark -- fills on whole pixels.  The count lives below the grid now
+      -- (see drawStats), so the header carries only the label.
+      Font.draw(("BOX%d"):format(n), 16, Layout.HEADER_Y)
       local ax = 10
       love.graphics.rectangle("fill", ax, 8, 1, 1)
       love.graphics.rectangle("fill", ax - 1, 9, 3, 1)
@@ -109,24 +103,8 @@ return function(mod)
       love.graphics.rectangle("fill", ax - 2, 13, 5, 1)
       love.graphics.rectangle("fill", ax - 1, 14, 3, 1)
       love.graphics.rectangle("fill", ax, 15, 1, 1)
-      -- the count hugs the label, but the divider owns its column: when a
-      -- wide label leaves less than the full "n/20" needs to end clear of
-      -- x=88, the capacity steps aside and the count stands alone
-      local countText = ("%d/%d"):format(mons, Boxes.CAPACITY)
-      local countX = 16 + #label * 8 + 2
-      if countX + #countText * 8 > 88 then
-        countText = tostring(mons)
-      end
-      Font.draw(countText, countX, Layout.HEADER_Y)
     else
-      -- The count lives in the box window, right-aligned to the divider.
-      -- The label gives up its space so the two never read as one number:
-      -- "BOX1 10/20", not "BOX 110/20".  This frees the panel's header row
-      -- for the identity plate, and with it, every pixel of sprite
-      -- headroom.
       Font.draw(("BOX%d"):format(n), Layout.HEADER_X, Layout.HEADER_Y)
-      local countText = ("%d/%d"):format(mons, Boxes.CAPACITY)
-      Font.draw(countText, 88 - #countText * 8, Layout.HEADER_Y)
     end
   end
 
@@ -284,28 +262,34 @@ return function(mod)
 
   local function drawStats(self)
     local mon = self:focused()
-    if not mon then return end
     local y, row = Layout.STATS_Y, Layout.ROW
+    -- The strip mirrors what sits above it: the box count reads under the
+    -- grid it counts, and the focused mon's HP under its sprite.  Between
+    -- them, the shiny mark and status code describe the same mon as the
+    -- HP beside them.
+    Font.draw(("%d/%d"):format(self.session:count(), Boxes.CAPACITY),
+              Layout.STATS_X, y)
+    if not mon then return end
     local x, x2 = Layout.STATS_X, Layout.STATS_X + 80
-    -- Right end of the HP row: the shiny mark, then the status condition.
-    -- Both are storage facts the vanilla PC never showed -- a mon keeps its
-    -- status through storage, and a shiny is invisible until you already
-    -- know its DVs.  The mark is a drawn diamond rather than a text glyph:
-    -- the font carries no star, and a filled shape reads as a sparkle at
-    -- this resolution the way the cursor's filled stubs do.  "OK" is the
-    -- no-condition value, not worth ink.
+    -- The shiny mark and status condition are storage facts the vanilla PC
+    -- never showed -- a mon keeps its status through storage, and a shiny
+    -- is invisible until you already know its DVs.  The mark is a drawn
+    -- diamond rather than a text glyph: the font carries no star, and a
+    -- filled shape reads as a sparkle at this resolution the way the
+    -- cursor's filled stubs do.  "OK" is the no-condition value, not worth
+    -- ink.
     if Stats.isShiny(mon.dvs) then
-      local mx, my = 120, y + 3
+      local mx, my = 56, y + 3
       love.graphics.rectangle("fill", mx + 2, my, 1, 1)
       love.graphics.rectangle("fill", mx, my + 1, 5, 1)
       love.graphics.rectangle("fill", mx + 2, my + 2, 1, 1)
     end
     if mon.status and mon.status ~= "OK" then
-      Font.draw(mon.status, 128, y)
+      Font.draw(mon.status, 64, y)
     end
     local stats = mon.stats
     if stats then
-      Font.draw(("HP  %3d/%3d"):format(mon.hp or 0, stats.hp or 0), x, y)
+      Font.draw(("%d/%d"):format(mon.hp or 0, stats.hp or 0), 96, y)
       Font.draw(("ATK %3d"):format(stats.attack or 0), x, y + row)
       Font.draw(("DEF %3d"):format(stats.defense or 0), x2, y + row)
       Font.draw(("SPD %3d"):format(stats.speed or 0), x, y + row * 2)

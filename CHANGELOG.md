@@ -3,12 +3,11 @@
 ## 0.9.0
 
 - The focused mon's name and level moved from the stats strip to a plate
-  above its sprite, where the eye already is, and the sprite now stands on
-  the frame floor so tall sprites keep as much of their heads out from
-  under the plate as the box allows. The box count moved up beside the box
-  number to make the room. The strip now runs
-  HP / ATK-DEF / SPD-SPC from its top (deposit mode keeps all three), and
-  the type line stays box view's bonus row.
+  above its sprite, and the sprite stands on the frame floor. The strip
+  reordered around what sits above it: the box count reads under the grid,
+  the mon's HP under its sprite, with the shiny mark and status condition
+  between them. Then ATK/DEF, SPD/SPC, and the type line (box view's bonus
+  row; deposit's party frame covers it).
 - Boxes can hold gaps. Drop a Pokemon on any free cell and the others stay
   exactly where they are -- no more compaction. The cartridge save cannot
   encode a hole, so the layout rides in the engine save beside it: a .sav

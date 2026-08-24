@@ -808,13 +808,13 @@ Font.draw = function(text, x, ty)
   texts[#texts + 1] = { text = tostring(text), x = x, y = ty }
   return realDraw(text, x, ty)
 end
--- the shiny mark is a drawn diamond on the HP row, not text: three small
--- fills around x=120, y=96..101 (the cursor's stubs live on the grid, well
--- above this row)
+-- the shiny mark is a drawn diamond on the strip's top row, not text:
+-- three small fills around x=56..60, y=91..93 (the cursor's stubs live on
+-- the grid, well above this row)
 local marks = {}
 local realRect = gfx.rectangle
 gfx.rectangle = function(mode, x, y2, w, h)
-  if mode == "fill" and x >= 118 and x <= 126 and y2 >= 90 and y2 <= 110 then
+  if mode == "fill" and x >= 54 and x <= 62 and y2 >= 88 and y2 <= 96 then
     marks[#marks + 1] = { x = x, y = y2 }
   end
   return realRect(mode, x, y2, w, h)
@@ -842,7 +842,15 @@ T.check(nameDraw ~= nil, "the mon's name draws on the plate")
 T.eq(nameDraw.y, 8, "the name sits at the panel plate's top row")
 T.eq(nameDraw.x, 96, "a long name holds its start at the panel's left edge")
 T.eq(drew(":L12") ~= nil, true, "the level sits under the name")
-T.eq(drew(("HP  %3d/%3d"):format(20, 20)).y, 88, "the strip starts at the HP row")
+
+-- the strip's top row mirrors the columns above it: the box count under
+-- the grid, the HP under the sprite
+local countDraw = drew("1/20")
+T.check(countDraw ~= nil, "the box count prints under the grid")
+T.eq(countDraw.x, 8, "the count sits at the strip's left edge")
+local hpDraw = drew("20/20")
+T.check(hpDraw ~= nil, "the focused mon's HP prints")
+T.eq(hpDraw.x, 96, "the HP sits under the sprite column")
 
 stripGrid.counter = 130
 texts = {}
@@ -864,7 +872,7 @@ Font.draw = function(text, x, ty)
   return realDraw(text, x, ty)
 end
 gfx.rectangle = function(mode, x, y2, w, h)
-  if mode == "fill" and x >= 118 and x <= 126 and y2 >= 90 and y2 <= 110 then
+  if mode == "fill" and x >= 54 and x <= 62 and y2 >= 88 and y2 <= 96 then
     marks[#marks + 1] = { x = x, y = y2 }
   end
   return realRect(mode, x, y2, w, h)
