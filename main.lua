@@ -11,6 +11,7 @@ local Sprites = require("src.pokemon.Sprites")
 local Boxes = require("src.pokemon.Boxes")
 local Stats = require("src.pokemon.Stats")
 local TypeChart = require("src.battle.TypeChart")
+local PaletteFX = require("src.render.PaletteFX")
 
 return function(mod)
   local function sibling(name)
@@ -50,6 +51,19 @@ return function(mod)
   -- because it was a small 14x12 bordered Menu drawn deliberately over the
   -- PC menu; this replacement is full-screen.
   Screen.isOpaque = true
+
+  -- SGB: the grid declares its own palette instead of inheriting one.
+  -- Neither the WITHDRAW/DEPOSIT menu nor the PC main menu beneath it
+  -- declare zones (src/ui/Menu has no sgbPalettes), so without this the
+  -- zone walk falls through to the overworld, and the icons -- grayscale
+  -- art awaiting a zone -- colored with the palette of whatever map the
+  -- player was standing on when they opened the PC.  MEWMON whole-screen
+  -- is what ListMenu's generic full-screen menus get (SET_PAL_GENERIC)
+  -- and the palette the engine already trusts for mon icons: the party
+  -- screen's icon column is MEWMON too.
+  function Screen:sgbPalettes(game)
+    return PaletteFX.wholeNamed(game.data, "MEWMON")
+  end
 
   -- The mon the panel and stats strip describe: whatever the cursor is on,
   -- or in deposit mode, whichever party member is highlighted.

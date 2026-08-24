@@ -5,6 +5,11 @@
 - Holding a d-pad direction now repeats: it acts on the press, then again
   after a short delay, then steadily -- so walking the grid and paging
   boxes no longer means tapping per step. A and B never repeat.
+- The screen now declares its own SGB palette (MEWMON, the generic
+  full-screen menu palette). Neither PC menu above the overworld declares
+  one, so the box previously inherited the current map's palette -- the
+  icons changed color depending on where you were standing when you opened
+  the PC.
 - The grid remembers the cursor. Leaving to the WITHDRAW/DEPOSIT menu and
   coming back puts you on the cell you left, in deposit mode too, with the
   party cursor clamped to the party that is actually there.

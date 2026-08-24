@@ -819,6 +819,33 @@ depStrip:draw()
 Font.draw = realDraw
 T.check(drew("NORMAL/FLYING") == nil, "deposit mode hides the type line under box C")
 
+-- ------- the screen declares its own palette zones
+-- Without sgbPalettes the grid inherits the overworld's map palette through
+-- the PC menu chain (src/ui/Menu declares none), so the icons colored with
+-- wherever the player was standing when they opened the PC.  MEWMON
+-- whole-screen is what ListMenu's generic full-screen menus get.  The
+-- fixture dataset is ROM-free and ships no palette pack, so the test
+-- injects the one palette the declaration names -- the same fallback path
+-- PaletteFX.pack takes on a real load.
+Data.palettes = Data.palettes or {}
+Data.palettes.palettes = Data.palettes.palettes or {}
+Data.palettes.palettes.MEWMON = Data.palettes.palettes.MEWMON
+  or { { 255, 255, 255 }, { 170, 170, 170 }, { 85, 85, 85 }, { 0, 0, 0 } }
+local palGame = {
+  data = Data,
+  save = { party = {}, boxes = nil, currentBox = 1 },
+  stack = { push = function() end, pop = function() end },
+  input = { wasPressed = function() return false end,
+            isDown = function() return false end },
+}
+local palGrid = openGrid(palGame, "WITHDRAW POKéMON")
+local zones = palGrid:sgbPalettes(palGame)
+local expected = require("src.render.PaletteFX").wholeNamed(Data, "MEWMON")
+T.check(zones ~= nil, "the grid declares palette zones")
+T.eq(#zones, #expected, "one whole-screen zone, like ListMenu's generic")
+T.eq(zones[1].x, 0, "the zone starts at the canvas edge")
+T.eq(zones[1].w, 160, "the zone spans the full canvas width")
+
 run.release()
 Screens.invalidate()
 T.finish("bills_pc_plus")
