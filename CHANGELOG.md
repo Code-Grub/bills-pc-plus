@@ -5,7 +5,8 @@
 - The focused mon's name and level moved from the stats strip to a plate
   above its sprite, where the eye already is, and the sprite now stands on
   the frame floor so tall sprites keep as much of their heads out from
-  under the plate as the box allows. The strip now runs
+  under the plate as the box allows. The box count moved up beside the box
+  number to make the room. The strip now runs
   HP / ATK-DEF / SPD-SPC from its top (deposit mode keeps all three), and
   the type line stays box view's bonus row.
 - Boxes can hold gaps. Drop a Pokemon on any free cell and the others stay

@@ -819,7 +819,7 @@ T.eq(#marks, 3, "a shiny DV spread draws the three-stroke diamond mark")
 -- left edge, then slides left to reveal the tail.
 local nameDraw = drew("FIXMON A")
 T.check(nameDraw ~= nil, "the mon's name draws on the plate")
-T.eq(nameDraw.y, 16, "the name sits at the panel plate's top row")
+T.eq(nameDraw.y, 8, "the name sits at the panel plate's top row")
 T.eq(nameDraw.x, 96, "a long name holds its start at the panel's left edge")
 T.eq(drew(":L12") ~= nil, true, "the level sits under the name")
 T.eq(drew(("HP  %3d/%3d"):format(20, 20)).y, 88, "the strip starts at the HP row")

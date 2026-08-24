@@ -85,14 +85,23 @@ return function(mod)
 
   local function drawHeader(self)
     local n = self.session.save.currentBox
-    -- Vertical arrows in deposit mode signal that up/down now page the
-    -- destination box instead of the horizontal grid-cursor paging.
-    local fmt = self.mode == "deposit" and "^BOX %2dv" or "<BOX %2d>"
-    Font.draw(fmt:format(n), Layout.HEADER_X, Layout.HEADER_Y)
-    -- right-aligned inside the frame: 5 glyphs ending at the interior edge
-    -- count() not #: a sparse box holds nils, so # is meaningless
-    Font.draw(("%2d/%2d"):format(self.session:count(), Boxes.CAPACITY),
-              112, Layout.HEADER_Y)
+    local countText = ("%d/%d"):format(self.session:count(), Boxes.CAPACITY)
+    if self.mode == "deposit" then
+      -- Vertical arrows signal that up/down now page the destination box
+      -- instead of the horizontal grid-cursor paging.  The arrows widen the
+      -- label past what the box window can hold beside the count, so
+      -- deposit keeps the count on the panel side.
+      Font.draw(("^BOX%dv"):format(n), Layout.HEADER_X, Layout.HEADER_Y)
+      Font.draw(countText, 112, Layout.HEADER_Y)
+    else
+      -- The count lives in the box window, right-aligned to the divider.
+      -- The label gives up its space so the two never read as one number:
+      -- "BOX1 10/20", not "BOX 110/20".  This frees the panel's header row
+      -- for the identity plate, and with it, every pixel of sprite
+      -- headroom.
+      Font.draw(("BOX%d"):format(n), Layout.HEADER_X, Layout.HEADER_Y)
+      Font.draw(countText, 88 - #countText * 8, Layout.HEADER_Y)
+    end
   end
 
   -- A built-in icon draws exactly 16x16, but a mod-supplied image draws
@@ -211,6 +220,11 @@ return function(mod)
     local nameText = self.session:nameOf(mon)
     local levelText = (":L%d"):format(mon.level or 1)
     local nameW, levelW = #nameText * 8, #levelText * 8
+    -- Box view's plate rides at the panel's header row (the count moved to
+    -- the box window), so even a 56px sprite clears it; deposit's count
+    -- still owns that row, so the plate holds one row lower there.
+    local plateY = self.mode == "deposit" and Layout.PLATE_Y_DEPOSIT
+      or Layout.PLATE_Y
     local plateW = math.min(Layout.PANEL_W, math.max(nameW, levelW) + 4)
     local nameX
     if nameW > Layout.PANEL_W then
@@ -234,15 +248,15 @@ return function(mod)
     else
       nameX = Layout.SPRITE_CX - math.floor(nameW / 2)
     end
-    love.graphics.setScissor(Layout.PANEL_X, Layout.PLATE_Y,
+    love.graphics.setScissor(Layout.PANEL_X, plateY,
                              Layout.PANEL_W, 16)
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.rectangle("fill", Layout.SPRITE_CX - math.floor(plateW / 2),
-      Layout.PLATE_Y, plateW, 16)
+      plateY, plateW, 16)
     love.graphics.setColor(0, 0, 0, 1)
-    Font.draw(nameText, nameX, Layout.PLATE_Y)
+    Font.draw(nameText, nameX, plateY)
     Font.draw(levelText, Layout.SPRITE_CX - math.floor(levelW / 2),
-      Layout.PLATE_Y + 8)
+      plateY + 8)
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.setScissor()
   end
