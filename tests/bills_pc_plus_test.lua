@@ -206,8 +206,8 @@ local okDep, depErr = pcall(function() dep:draw() end)
 T.check(okDep, "drawing deposit mode succeeds: " .. tostring(depErr))
 
 -- deposit marks the paging directions with a matched pair of drawn
--- triangles flanking the box label: an up stroke before it, a down stroke
--- after, three fills each, all in the header row
+-- triangles stacked in the header row: up on top, a two-pixel gap, down
+-- below -- six fills, all in the header row
 local arrowFills = {}
 local arrowRect = love.graphics.rectangle
 love.graphics.rectangle = function(mode, x, y2, w, h)
@@ -218,10 +218,10 @@ love.graphics.rectangle = function(mode, x, y2, w, h)
 end
 dep:draw()
 love.graphics.rectangle = arrowRect
-T.eq(#arrowFills, 6, "the header flanks the label with up and down triangles")
+T.eq(#arrowFills, 6, "the header stacks up and down triangles beside the label")
 T.eq(arrowFills[1].x, 10, "the up arrow's apex leads its base")
-T.check(arrowFills[4].x > arrowFills[1].x + 32,
-  "the down arrow trails the label, not the up arrow")
+T.check(arrowFills[4].y > arrowFills[1].y + 2,
+  "the down arrow stacks under the up arrow, with air between")
 
 dep.partyCursor = 2
 press(dep, "a")
