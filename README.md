@@ -16,7 +16,7 @@ something, and it tells you when it does.
 
 | Box view | Deposit view |
 |---|---|
-| <img src="images/screen2.jpg?v=2" width="460" alt="Box view: the 5x4 grid with the selected Pokemon's sprite and stats"/> | <img src="images/screen1.jpg?v=2" width="460" alt="Deposit view: the party row under the box grid"/> |
+| <img src="images/screen2.jpg?v=2" width="480" alt="Box view: the 5x4 grid with the selected Pokemon's sprite and stats"/> | <img src="images/screen1.jpg?v=2" width="480" alt="Deposit view: the party row under the box grid"/> |
 
 ## Features
 
