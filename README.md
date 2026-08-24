@@ -65,7 +65,7 @@ and depositing is `B` then pick.
 | A while carrying | Drop: swap if the slot is occupied, append if empty |
 | B | Cancel carry; if not carrying, back to the menu |
 
-### Deposit mode (DEPOSIT)
+### Deposit view (DEPOSIT)
 
 | Input | Action |
 |---|---|
