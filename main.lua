@@ -104,8 +104,8 @@ return function(mod)
   -- is the mod's worst daily grind, and the Game Boy pad has no shoulder
   -- button to page with (src/core/Input.lua:9-21), so the hold is the
   -- pager.  A and B stay on wasPressed: drops and menus must never repeat.
-  local HELD_DELAY = 12
-  local HELD_EVERY = 4
+  local HELD_DELAY = 20
+  local HELD_EVERY = 6
 
   -- Returns the direction to act on this frame, or nil.  The press edge
   -- comes from wasPressed, not isDown: a tap can be pressed and released

@@ -664,18 +664,20 @@ T.eq(menu3.session.dirty, false, "the session is clean after committing")
 -- ------- dpad repeat
 -- A held direction acts on the press frame, then after HELD_DELAY frames
 -- again, then once every HELD_EVERY.  Every nav assertion above is a tap
--- and must behave exactly as before; this pins the hold cadence.
+-- and must behave exactly as before; this pins the hold cadence.  The two
+-- constants below mirror main.lua's, which are closure locals.
+local HELD_DELAY, HELD_EVERY = 20, 6
 local rep = openGrid(game, "WITHDRAW POKéMON")
 game.save.currentBox = 1
 rep.cursor = 1
 
 hold(rep, "right", 1, true)
 T.eq(rep.cursor, 2, "the press frame acts at once")
-hold(rep, "right", 11)
+hold(rep, "right", HELD_DELAY - 1)
 T.eq(rep.cursor, 2, "a hold does not repeat inside the initial delay")
 hold(rep, "right", 1)
 T.eq(rep.cursor, 3, "the first repeat lands on the HELD_DELAY frame")
-hold(rep, "right", 4)
+hold(rep, "right", HELD_EVERY)
 T.eq(rep.cursor, 4, "and further repeats land every HELD_EVERY frames")
 
 -- holding a direction at a grid edge pages one box per repeat, no faster
@@ -683,7 +685,7 @@ rep.cursor = 5
 game.save.currentBox = 1
 hold(rep, "right", 1, true)
 T.eq(game.save.currentBox, 2, "the press frame at the edge pages once")
-hold(rep, "right", 11)
+hold(rep, "right", HELD_DELAY - 1)
 T.eq(game.save.currentBox, 2, "the hold delay applies to paging too")
 hold(rep, "right", 1)
 T.eq(rep.cursor, 2,
