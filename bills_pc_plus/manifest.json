@@ -12,5 +12,6 @@
   "dependencies": [],
   "optional_dependencies": [],
   "conflicts": [],
-  "description": "Replaces the PC box screen with a grid interface: free box paging with no forced save, grab-and-place rearranging, and an inline art and stats panel."
+  "description": "Replaces the PC box screen with a grid interface: free box paging with no forced save, grab-and-place rearranging, and an inline art and stats panel.",
+  "github": "Code-Grub/bills-pc-plus"
 }
