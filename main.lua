@@ -88,11 +88,11 @@ return function(mod)
     local countText = ("%d/%d"):format(self.session:count(), Boxes.CAPACITY)
     if self.mode == "deposit" then
       -- Vertical arrows signal that up/down now page the destination box
-      -- instead of the horizontal grid-cursor paging.  The arrows widen the
-      -- label past what the box window can hold beside the count, so
-      -- deposit keeps the count on the panel side.
+      -- instead of the horizontal grid-cursor paging.  The count follows
+      -- the label here too; where it crosses the divider's column, the
+      -- divider stays out of the header row (it starts at the grid top).
       Font.draw(("^BOX%dv"):format(n), Layout.HEADER_X, Layout.HEADER_Y)
-      Font.draw(countText, 112, Layout.HEADER_Y)
+      Font.draw(countText, 64, Layout.HEADER_Y)
     else
       -- The count lives in the box window, right-aligned to the divider.
       -- The label gives up its space so the two never read as one number:
