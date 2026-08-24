@@ -243,11 +243,6 @@ return function(mod)
     local nameText = self.session:nameOf(mon)
     local levelText = (":L%d"):format(mon.level or 1)
     local nameW, levelW = #nameText * 8, #levelText * 8
-    -- Box view's plate rides at the panel's header row (the count moved to
-    -- the box window), so even a 56px sprite clears it; deposit's count
-    -- still owns that row, so the plate holds one row lower there.
-    local plateY = self.mode == "deposit" and Layout.PLATE_Y_DEPOSIT
-      or Layout.PLATE_Y
     local plateW = math.min(Layout.PANEL_W, math.max(nameW, levelW) + 4)
     local nameX
     if nameW > Layout.PANEL_W then
@@ -271,15 +266,15 @@ return function(mod)
     else
       nameX = Layout.SPRITE_CX - math.floor(nameW / 2)
     end
-    love.graphics.setScissor(Layout.PANEL_X, plateY,
+    love.graphics.setScissor(Layout.PANEL_X, Layout.PLATE_Y,
                              Layout.PANEL_W, 16)
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.rectangle("fill", Layout.SPRITE_CX - math.floor(plateW / 2),
-      plateY, plateW, 16)
+      Layout.PLATE_Y, plateW, 16)
     love.graphics.setColor(0, 0, 0, 1)
-    Font.draw(nameText, nameX, plateY)
+    Font.draw(nameText, nameX, Layout.PLATE_Y)
     Font.draw(levelText, Layout.SPRITE_CX - math.floor(levelW / 2),
-      plateY + 8)
+      Layout.PLATE_Y + 8)
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.setScissor()
   end

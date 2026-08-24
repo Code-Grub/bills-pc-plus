@@ -125,14 +125,12 @@ T.eq((cy + ch) * 8, 144, "box C ends flush with the bottom of the screen")
 T.eq((cx + 1) * 8, L.PARTY_X, "box C's interior left edge is the party row's left edge")
 T.eq((cx + cw - 1) * 8, 152, "box C spans the full width, like the boxes above it")
 
--- the identity plate rides above the sprite, at the panel's content top.
--- Box view's plate takes the header row (the count lives in the box
--- window there), so a floor-baseline 56px sprite clears it exactly;
--- deposit's count keeps that row, so the plate holds one row lower.
-T.eq(L.PLATE_Y, 8, "the box-view plate takes the panel's header row")
+-- the identity plate rides above the sprite, at the panel's content top,
+-- in both modes: the count lives in the box window now, so the panel's
+-- header row is free everywhere
+T.eq(L.PLATE_Y, 8, "the plate takes the panel's header row in both modes")
 T.eq(L.SPRITE_BASELINE - 56, L.PLATE_Y + 16,
-  "a 56px sprite's top clears the box-view plate exactly")
-T.eq(L.PLATE_Y_DEPOSIT, 16, "deposit's plate holds a row lower, under its count")
+  "a 56px sprite's top clears the plate exactly")
 
 -- the strip runs HP, ATK/DEF, SPD/SPC; box C covers the type line, so
 -- deposit mode shows the three stat rows and box view gets types as its

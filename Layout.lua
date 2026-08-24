@@ -57,12 +57,10 @@ Layout.DIVIDER_ROWS = 8   -- 8 x 8px spans the grid's 64px height
 Layout.PANEL_X, Layout.PANEL_Y = 96, 16
 Layout.PANEL_W, Layout.PANEL_H = 56, 64
 
--- the identity plate (name over level) sits at the panel's top.  Box view
--- puts it on the header row -- the count moved to the box window -- so a
--- 56px sprite at its floor baseline clears it exactly; deposit's count
--- keeps that row, so the plate holds one row lower there.
+-- the identity plate (name over level) sits at the panel's top in both
+-- modes: the count lives in the box window now, so the panel's header row
+-- is free everywhere, and a floor-baseline 56px sprite clears it exactly
 Layout.PLATE_Y = 8
-Layout.PLATE_Y_DEPOSIT = 16
 
 -- horizontal centre of the sprite panel; consumers subtract half the
 -- sprite's own width so sprites of any size centre correctly
