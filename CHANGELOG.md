@@ -2,6 +2,10 @@
 
 ## 0.9.0
 
+- The focused mon's name and level moved from the stats strip to a plate
+  above its sprite, where the eye already is. The strip now runs
+  HP / ATK-DEF / SPD-SPC from its top (deposit mode keeps all three), and
+  the type line stays box view's bonus row.
 - Boxes can hold gaps. Drop a Pokemon on any free cell and the others stay
   exactly where they are -- no more compaction. The cartridge save cannot
   encode a hole, so the layout rides in the engine save beside it: a .sav

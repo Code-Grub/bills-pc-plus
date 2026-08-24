@@ -178,23 +178,45 @@ return function(mod)
     if not mon then return end
     local path, trueColor = Sprites.path(self.game.data, mon.species, "front",
       { mon = mon, kind = "summary" })
-    if not path then return end
-    if self.spritePath ~= path then
-      local ok, img = pcall(love.graphics.newImage, path)
-      self.sprite = ok and img or nil
-      self.spriteTrueColor = self.sprite and trueColor or false
-      self.spritePath = path
+    if path then
+      if self.spritePath ~= path then
+        local ok, img = pcall(love.graphics.newImage, path)
+        self.sprite = ok and img or nil
+        self.spriteTrueColor = self.sprite and trueColor or false
+        self.spritePath = path
+      end
+      if self.sprite then
+        local pw, ph = self.sprite:getDimensions()
+        local px = Layout.SPRITE_CX - math.floor(pw / 2)
+        local py = Layout.SPRITE_BASELINE - ph
+        -- SummaryMenu draws the front pic mirrored; sx = -1 anchored at the
+        -- block's right edge lands it on px..px+pw
+        love.graphics.draw(self.sprite, px + pw, py, 0, -1, 1)
+        if self.spriteTrueColor then
+          PaletteFX.markTrueColor(px, py, pw, ph)
+        end
+      end
     end
-    if not self.sprite then return end
-    local pw, ph = self.sprite:getDimensions()
-    local px = Layout.SPRITE_CX - math.floor(pw / 2)
-    local py = Layout.SPRITE_BASELINE - ph
-    -- SummaryMenu draws the front pic mirrored; sx = -1 anchored at the
-    -- block's right edge lands it on px..px+pw
-    love.graphics.draw(self.sprite, px + pw, py, 0, -1, 1)
-    if self.spriteTrueColor then
-      require("src.render.PaletteFX").markTrueColor(px, py, pw, ph)
-    end
+    -- Identity plate: the name and level ride above the sprite instead of
+    -- heading the stats strip.  The plate is white on white wherever the
+    -- sprite is short of it, and only bites where a tall sprite reaches
+    -- up under it; the scissor keeps a ten-glyph name from walking over
+    -- the divider or the frame.
+    local nameText = self.session:nameOf(mon)
+    local levelText = (":L%d"):format(mon.level or 1)
+    local nameW, levelW = #nameText * 8, #levelText * 8
+    local plateW = math.min(Layout.PANEL_W, math.max(nameW, levelW) + 4)
+    love.graphics.setScissor(Layout.PANEL_X, Layout.PLATE_Y,
+                             Layout.PANEL_W, 16)
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.rectangle("fill", Layout.SPRITE_CX - math.floor(plateW / 2),
+      Layout.PLATE_Y, plateW, 16)
+    love.graphics.setColor(0, 0, 0, 1)
+    Font.draw(nameText, Layout.SPRITE_CX - math.floor(nameW / 2), Layout.PLATE_Y)
+    Font.draw(levelText, Layout.SPRITE_CX - math.floor(levelW / 2),
+      Layout.PLATE_Y + 8)
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.setScissor()
   end
 
   local function drawStats(self)
@@ -202,12 +224,6 @@ return function(mod)
     if not mon then return end
     local y, row = Layout.STATS_Y, Layout.ROW
     local x, x2 = Layout.STATS_X, Layout.STATS_X + 80
-    -- Deposit mode puts box C over the fourth row, so stop one short
-    -- rather than drawing text that the frame is about to cover.
-    local rows = self.mode == "deposit"
-      and Layout.STATS_ROWS_DEPOSIT or Layout.STATS_ROWS_BOX
-    Font.draw(self.session:nameOf(mon), x, y)
-    Font.draw((":L%d"):format(mon.level or 1), 112, y)
     -- Right end of the HP row: the shiny mark, then the status condition.
     -- Both are storage facts the vanilla PC never showed -- a mon keeps its
     -- status through storage, and a shiny is invisible until you already
@@ -216,29 +232,28 @@ return function(mod)
     -- this resolution the way the cursor's filled stubs do.  "OK" is the
     -- no-condition value, not worth ink.
     if Stats.isShiny(mon.dvs) then
-      local mx, my = 120, y + row + 3
+      local mx, my = 120, y + 3
       love.graphics.rectangle("fill", mx + 2, my, 1, 1)
       love.graphics.rectangle("fill", mx, my + 1, 5, 1)
       love.graphics.rectangle("fill", mx + 2, my + 2, 1, 1)
     end
     if mon.status and mon.status ~= "OK" then
-      Font.draw(mon.status, 128, y + row)
+      Font.draw(mon.status, 128, y)
     end
     local stats = mon.stats
     if stats then
-      Font.draw(("HP  %3d/%3d"):format(mon.hp or 0, stats.hp or 0), x, y + row)
-      Font.draw(("ATK %3d"):format(stats.attack or 0), x, y + row * 2)
-      Font.draw(("DEF %3d"):format(stats.defense or 0), x2, y + row * 2)
+      Font.draw(("HP  %3d/%3d"):format(mon.hp or 0, stats.hp or 0), x, y)
+      Font.draw(("ATK %3d"):format(stats.attack or 0), x, y + row)
+      Font.draw(("DEF %3d"):format(stats.defense or 0), x2, y + row)
+      Font.draw(("SPD %3d"):format(stats.speed or 0), x, y + row * 2)
+      Font.draw(("SPC %3d"):format(stats.special or 0), x2, y + row * 2)
     end
-    if rows >= 4 then
-      if stats then
-        Font.draw(("SPD %3d"):format(stats.speed or 0), x, y + row * 3)
-        Font.draw(("SPC %3d"):format(stats.special or 0), x2, y + row * 3)
-      end
-      -- The type line sits under SPD/SPC, in the strip's spare row -- box
-      -- mode only, since box C covers it in deposit.  Display names through
-      -- TypeChart for the same reason SummaryMenu does: PSYCHIC's stored
-      -- constant would print as "PSYCHIC_TYPE" (#214).
+    -- The type line sits under SPD/SPC.  Deposit mode's party frame (box C)
+    -- covers this row, so it is box view's bonus row -- the frame, not a
+    -- row count, decides whether it shows.  Display names go through
+    -- TypeChart for the same reason SummaryMenu does: PSYCHIC's stored
+    -- constant would print as "PSYCHIC_TYPE" (#214).
+    if self.mode ~= "deposit" then
       local def = self.session.data.pokemon[mon.species]
       local t = def and def.types
       if t and t[1] then
@@ -246,7 +261,7 @@ return function(mod)
         if t[2] then
           line = line .. "/" .. TypeChart.displayName(t[2])
         end
-        Font.draw(line, x, y + row * 4)
+        Font.draw(line, x, y + row * 3)
       end
     end
   end

@@ -30,13 +30,9 @@ Layout.BOX_B_TILES = { 0, 10, 20, 8 }
 -- Box C frames the party row in deposit mode only, drawn OVER the lower
 -- part of box B -- which box mode leaves empty anyway, so the frame costs
 -- nothing there.  Its interior lands exactly on PARTY_Y, which is why no
--- other constant moves.  It does cover box B's fourth text row, hence the
--- two row counts below.
+-- other constant moves.  It covers the type line in the stats strip (see
+-- drawStats), which is the one row deposit mode gives up.
 Layout.BOX_C_TILES = { 0, 14, 20, 4 }
-
--- how many of the stats strip's rows are visible in each mode
-Layout.STATS_ROWS_BOX = 4
-Layout.STATS_ROWS_DEPOSIT = 3
 
 -- header text sits inside box A, above the grid
 Layout.HEADER_X, Layout.HEADER_Y = 8, 8
@@ -58,6 +54,10 @@ Layout.DIVIDER_ROWS = 9   -- 9 x 8px spans the interior's 72px height
 -- with margin.
 Layout.PANEL_X, Layout.PANEL_Y = 96, 16
 Layout.PANEL_W, Layout.PANEL_H = 56, 64
+
+-- the identity plate (name over level) sits at the panel's top, above the
+-- sprite, which stays bottom-aligned on its baseline below it
+Layout.PLATE_Y = 16
 
 -- horizontal centre of the sprite panel; consumers subtract half the
 -- sprite's own width so sprites of any size centre correctly

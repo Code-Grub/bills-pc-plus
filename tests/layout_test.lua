@@ -125,11 +125,14 @@ T.eq((cy + ch) * 8, 144, "box C ends flush with the bottom of the screen")
 T.eq((cx + 1) * 8, L.PARTY_X, "box C's interior left edge is the party row's left edge")
 T.eq((cx + cw - 1) * 8, 152, "box C spans the full width, like the boxes above it")
 
--- box C covers the fourth stat row, so deposit mode shows three
-T.eq(L.STATS_ROWS_BOX, 4, "box mode shows four stat rows")
-T.eq(L.STATS_ROWS_DEPOSIT, 3, "deposit mode shows three, the fourth being covered")
-T.eq(L.STATS_Y + L.STATS_ROWS_DEPOSIT * L.ROW, cy * 8,
-  "the last visible deposit-mode stat row ends where box C's border starts")
+-- the identity plate rides above the sprite, at the panel's content top
+T.eq(L.PLATE_Y, 16, "the name plate sits at the panel's content top")
+
+-- the strip runs HP, ATK/DEF, SPD/SPC; box C covers the type line, so
+-- deposit mode shows the three stat rows and box view gets types as its
+-- bonus row
+T.eq(L.STATS_Y + 3 * L.ROW, cy * 8,
+  "the last deposit-visible stat row ends where box C's border starts")
 
 -- ------- the divider between the grid and the sprite panel
 -- Box A's interior is 144px and the grid takes 80 of it, so the divider

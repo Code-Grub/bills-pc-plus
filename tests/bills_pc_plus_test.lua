@@ -813,6 +813,14 @@ T.check(drew("NORMAL/FLYING") ~= nil, "both types print on one slash-joined line
 T.check(drew("PAR") ~= nil, "the status condition prints")
 T.eq(#marks, 3, "a shiny DV spread draws the three-stroke diamond mark")
 
+-- the identity moved up to the panel: name over level above the sprite,
+-- and the strip no longer repeats them
+local nameDraw = drew("FIXMON A")
+T.check(nameDraw ~= nil, "the mon's name draws on the plate")
+T.eq(nameDraw.y, 16, "the name sits at the panel plate's top row")
+T.eq(drew(":L12") ~= nil, true, "the level sits under the name")
+T.eq(drew(("HP  %3d/%3d"):format(20, 20)).y, 88, "the strip starts at the HP row")
+
 -- a plain mon draws the type line but neither mark
 stripGrid.session.sparse[1][1] = monOfSpecies("FIXMON_A", 5)
 stripGrid.counter = 0
