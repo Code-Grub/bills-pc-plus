@@ -62,10 +62,10 @@ Layout.PLATE_Y = 16
 -- horizontal centre of the sprite panel; consumers subtract half the
 -- sprite's own width so sprites of any size centre correctly
 Layout.SPRITE_CX = 124
--- 4px above box A's interior floor (80), not on it.  Bottom-aligned flush
--- to the border the sprite looked like it was resting on the line; half a
--- tile of clearance floats it without disturbing the grid beside it.
-Layout.SPRITE_BASELINE = 76
+-- on the frame floor, not lifted: the identity plate above needs every
+-- pixel of headroom, so a tall sprite stands on the border instead of
+-- floating 4px over it
+Layout.SPRITE_BASELINE = 80
 
 -- Below the stats rather than above them, so the stats strip never shifts
 -- when deposit mode opens.

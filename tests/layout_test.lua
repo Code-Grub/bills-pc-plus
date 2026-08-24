@@ -95,7 +95,7 @@ T.eq(L.PANEL_X, IN_L + 80 + 8, "the sprite panel starts after the grid and the d
 T.eq(L.PANEL_W, 56, "the panel is 56px after the frame and the divider take their tiles")
 T.eq(L.PANEL_X + L.PANEL_W, IN_R, "the panel ends at box A's interior right edge")
 T.eq(L.SPRITE_CX, L.PANEL_X + L.PANEL_W / 2, "SPRITE_CX is still the panel's centre")
-T.eq(A_BOT - L.SPRITE_BASELINE, 4, "sprites sit 4px clear of box A's interior floor")
+T.eq(A_BOT - L.SPRITE_BASELINE, 0, "sprites stand on box A's interior floor, clearing headroom for the plate")
 
 -- a 56px sprite, the widest in Gen 1, fills the panel exactly
 local left56 = L.SPRITE_CX - math.floor(56 / 2)
@@ -159,17 +159,19 @@ T.check(left40 > L.PANEL_X, "a 40px sprite keeps margin on the divider side")
 T.check(left40 + 40 < 152, "and on the frame side")
 T.eq(left40 - L.PANEL_X, 152 - (left40 + 40), "a smaller sprite stays centred")
 
--- ------- the sprite floats clear of the frame's floor
--- Bottom-aligned flush to the interior floor, the sprite looked like it was
--- resting on the border line.  Lifting the baseline half a tile gives it
--- air without moving anything else.
-T.eq(L.SPRITE_BASELINE, 76, "the sprite baseline sits 4px above the interior floor")
-T.eq(A_BOT - L.SPRITE_BASELINE, 4, "that is half a tile of clearance")
+-- ------- the sprite stands on the frame's floor
+-- The identity plate owns the panel's top two rows, so the baseline sits
+-- on the interior floor: every pixel of headroom goes to the sprite, and
+-- the tallest sprites keep their heads out from under the plate as far as
+-- the box allows.
+T.eq(L.SPRITE_BASELINE, 80, "the sprite baseline is the interior floor")
+T.eq(A_BOT - L.SPRITE_BASELINE, 0, "no float -- the floor is the baseline")
 
--- the tallest sprite still clears the header above it
+-- a 56px sprite's top reaches y=24, under the plate's bottom edge (32) --
+-- the plate bites 8px of the tallest sprites, 4px of 52px ones, and
+-- nothing 48px or shorter
 local top56 = L.SPRITE_BASELINE - 56
-T.check(top56 > L.HEADER_Y + L.ROW,
-  "a 56px sprite still starts below the header row")
+T.eq(top56, 24, "the tallest sprite starts at y=24")
 T.check(top56 >= A_TOP, "and stays inside box A's interior")
 
 T.finish("bills_pc_plus layout")
