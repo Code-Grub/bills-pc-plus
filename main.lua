@@ -104,7 +104,8 @@ return function(mod)
       love.graphics.rectangle("fill", ax - 2, 13, 5, 1)
       love.graphics.rectangle("fill", ax - 1, 14, 3, 1)
       love.graphics.rectangle("fill", ax, 15, 1, 1)
-      Font.draw(countText, 72, Layout.HEADER_Y)
+      -- an 8px gap after the label, wherever its width lands
+      Font.draw(countText, 16 + #label * 8 + 8, Layout.HEADER_Y)
     else
       -- The count lives in the box window, right-aligned to the divider.
       -- The label gives up its space so the two never read as one number:
