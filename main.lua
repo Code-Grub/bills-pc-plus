@@ -101,7 +101,7 @@ return function(mod)
       -- two-digit box) leaves less than the full "n/20" needs, so that
       -- one case shows just the count rather than cross the divider.
       local label = ("BOX%d"):format(n)
-      Font.draw(label, 13, Layout.HEADER_Y)
+      Font.draw(label, 16, Layout.HEADER_Y)
       local ax = 10
       love.graphics.rectangle("fill", ax, 8, 1, 1)
       love.graphics.rectangle("fill", ax - 1, 9, 3, 1)
@@ -109,8 +109,11 @@ return function(mod)
       love.graphics.rectangle("fill", ax - 2, 13, 5, 1)
       love.graphics.rectangle("fill", ax - 1, 14, 3, 1)
       love.graphics.rectangle("fill", ax, 15, 1, 1)
-      local countX = 13 + #label * 8 + 2
+      -- the count hugs the label, but the divider owns its column: when a
+      -- wide label leaves less than the full "n/20" needs to end clear of
+      -- x=88, the capacity steps aside and the count stands alone
       local countText = ("%d/%d"):format(mons, Boxes.CAPACITY)
+      local countX = 16 + #label * 8 + 2
       if countX + #countText * 8 > 88 then
         countText = tostring(mons)
       end

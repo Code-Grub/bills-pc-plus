@@ -143,8 +143,8 @@ T.eq(L.STATS_Y + 3 * L.ROW, cy * 8,
 -- tile comes out of the panel: 64 -> 56, which is exactly a 7x7 sprite.
 T.eq(L.DIVIDER_X, L.GRID_X + 5 * L.CELL, "the divider sits where the grid ends")
 T.eq(L.DIVIDER_X, 88, "the divider column starts at x=88")
-T.eq(L.DIVIDER_TOP, 16, "the divider starts at the grid's top, under the header row")
-T.eq(L.DIVIDER_ROWS, 8, "eight 8px glyphs span the grid's 64px height")
+T.eq(L.DIVIDER_TOP, 8, "the divider spans the full interior, from box A's top")
+T.eq(L.DIVIDER_ROWS, 9, "nine 8px glyphs span the interior's 72px height")
 T.eq(L.DIVIDER_TOP + L.DIVIDER_ROWS * L.ROW, A_BOT,
   "the divider ends flush with box A's interior floor")
 

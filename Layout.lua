@@ -43,12 +43,11 @@ Layout.COLS, Layout.ROWS = 5, 4
 -- A column of Font.BORDER.v glyphs separating the grid from the sprite
 -- panel, drawn in the same chrome as the frames around it.  Box A's
 -- interior is 144px wide and the grid takes 80, so the divider's tile comes
--- out of the panel.  It starts at the grid's top, not the header's: the
--- header row belongs to the box label and count, which cross this column
--- on their way across the window.
+-- out of the panel.  It spans the full interior height; the header row's
+-- count yields to it, never the other way round.
 Layout.DIVIDER_X = 88
-Layout.DIVIDER_TOP = 16
-Layout.DIVIDER_ROWS = 8   -- 8 x 8px spans the grid's 64px height
+Layout.DIVIDER_TOP = 8
+Layout.DIVIDER_ROWS = 9   -- 9 x 8px spans the interior's 72px height
 
 -- 56 wide, after the outer frame took it from 80 to 64 and the divider took
 -- another tile.  56 is exactly a 7x7 sprite, the largest in Gen 1, so those
