@@ -88,11 +88,23 @@ return function(mod)
     local countText = ("%d/%d"):format(self.session:count(), Boxes.CAPACITY)
     if self.mode == "deposit" then
       -- Vertical arrows signal that up/down now page the destination box
-      -- instead of the horizontal grid-cursor paging.  The count follows
-      -- the label here too; where it crosses the divider's column, the
-      -- divider stays out of the header row (it starts at the grid top).
-      Font.draw(("^BOX%dv"):format(n), Layout.HEADER_X, Layout.HEADER_Y)
-      Font.draw(countText, 64, Layout.HEADER_Y)
+      -- instead of the horizontal grid-cursor paging.  Drawn as a matched
+      -- pair of little filled triangles rather than font glyphs: the font
+      -- has a down marker but no up companion, and two shapes from the
+      -- same hand read cleaner than one glyph and one hand-drawn cousin.
+      -- Same school as the cursor stubs and the shiny mark -- fills on
+      -- whole pixels.
+      local label = ("BOX%d"):format(n)
+      Font.draw(label, 16, Layout.HEADER_Y)
+      local ay = Layout.HEADER_Y + 3
+      love.graphics.rectangle("fill", 10, ay, 1, 1)
+      love.graphics.rectangle("fill", 9, ay + 1, 3, 1)
+      love.graphics.rectangle("fill", 8, ay + 2, 5, 1)
+      local dx = 16 + #label * 8 + 4
+      love.graphics.rectangle("fill", dx, ay, 5, 1)
+      love.graphics.rectangle("fill", dx + 1, ay + 1, 3, 1)
+      love.graphics.rectangle("fill", dx + 2, ay + 2, 1, 1)
+      Font.draw(countText, 72, Layout.HEADER_Y)
     else
       -- The count lives in the box window, right-aligned to the divider.
       -- The label gives up its space so the two never read as one number:

@@ -205,6 +205,24 @@ T.eq(game.save.currentBox, 1, "up pages to the previous destination box")
 local okDep, depErr = pcall(function() dep:draw() end)
 T.check(okDep, "drawing deposit mode succeeds: " .. tostring(depErr))
 
+-- deposit marks the paging directions with a matched pair of drawn
+-- triangles flanking the box label: an up stroke before it, a down stroke
+-- after, three fills each, all in the header row
+local arrowFills = {}
+local arrowRect = love.graphics.rectangle
+love.graphics.rectangle = function(mode, x, y2, w, h)
+  if mode == "fill" and y2 >= 8 and y2 <= 16 and w <= 8 then
+    arrowFills[#arrowFills + 1] = { x = x, y = y2 }
+  end
+  return arrowRect(mode, x, y2, w, h)
+end
+dep:draw()
+love.graphics.rectangle = arrowRect
+T.eq(#arrowFills, 6, "the header flanks the label with up and down triangles")
+T.eq(arrowFills[1].x, 10, "the up arrow's apex leads its base")
+T.check(arrowFills[4].x > arrowFills[1].x + 32,
+  "the down arrow trails the label, not the up arrow")
+
 dep.partyCursor = 2
 press(dep, "a")
 T.eq(#game.save.party, 1, "A deposited the highlighted party mon")
@@ -437,8 +455,10 @@ local function captureCursor(g, row, prep)
   gfx.rectangle = function(mode, x, y, w, h)
     if mode == "line" then
       strokes = strokes + 1
-    elseif w <= 8 or h <= 8 then
-      -- the frames fill 160px-wide rects; only cursor stubs are this small
+    elseif (w <= 8 or h <= 8) and y >= 16 then
+      -- the frames fill 160px-wide rects; only cursor stubs are this small,
+      -- and the deposit header's paging triangles live above the rows the
+      -- cursor can occupy
       stubs[#stubs + 1] = { x = x, y = y, w = w, h = h,
                             dark = current[1] == 0 and current[2] == 0 }
     end
