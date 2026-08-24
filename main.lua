@@ -96,12 +96,12 @@ return function(mod)
       -- hand-drawn cousin.  Same school as the cursor stubs and the shiny
       -- mark -- fills on whole pixels.
       --
-      -- Arrows, the BOX label, the number and a full "n/20" cannot all fit
-      -- in the box window without crossing the divider, so deposit's count
-      -- drops the capacity: the box view states it, and a full box says so
-      -- itself when the deposit is refused.
+      -- The count hugs the label at a 2px gap and keeps its capacity
+      -- whenever the pair stays inside the box window; a wide label (a
+      -- two-digit box) leaves less than the full "n/20" needs, so that
+      -- one case shows just the count rather than cross the divider.
       local label = ("BOX%d"):format(n)
-      Font.draw(label, 16, Layout.HEADER_Y)
+      Font.draw(label, 13, Layout.HEADER_Y)
       local ax = 10
       love.graphics.rectangle("fill", ax, 8, 1, 1)
       love.graphics.rectangle("fill", ax - 1, 9, 3, 1)
@@ -109,7 +109,12 @@ return function(mod)
       love.graphics.rectangle("fill", ax - 2, 13, 5, 1)
       love.graphics.rectangle("fill", ax - 1, 14, 3, 1)
       love.graphics.rectangle("fill", ax, 15, 1, 1)
-      Font.draw(tostring(mons), 16 + #label * 8 + 8, Layout.HEADER_Y)
+      local countX = 13 + #label * 8 + 2
+      local countText = ("%d/%d"):format(mons, Boxes.CAPACITY)
+      if countX + #countText * 8 > 88 then
+        countText = tostring(mons)
+      end
+      Font.draw(countText, countX, Layout.HEADER_Y)
     else
       -- The count lives in the box window, right-aligned to the divider.
       -- The label gives up its space so the two never read as one number:
