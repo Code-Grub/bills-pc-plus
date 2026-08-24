@@ -200,19 +200,47 @@ return function(mod)
     -- Identity plate: the name and level ride above the sprite instead of
     -- heading the stats strip.  The plate is white on white wherever the
     -- sprite is short of it, and only bites where a tall sprite reaches
-    -- up under it; the scissor keeps a ten-glyph name from walking over
-    -- the divider or the frame.
+    -- up under it; the scissor keeps the chrome clean.
+    --
+    -- A name wider than the panel marquees rather than clipping: it holds
+    -- its start, slides left until the tail shows, holds, and slides back.
+    -- Ping-pong on the frame counter, so it carries no state and restarts
+    -- with the screen.
+    local MARQUEE_HOLD = 60
+    local MARQUEE_EVERY = 3
     local nameText = self.session:nameOf(mon)
     local levelText = (":L%d"):format(mon.level or 1)
     local nameW, levelW = #nameText * 8, #levelText * 8
     local plateW = math.min(Layout.PANEL_W, math.max(nameW, levelW) + 4)
+    local nameX
+    if nameW > Layout.PANEL_W then
+      plateW = Layout.PANEL_W
+      local travel = nameW - Layout.PANEL_W
+      local scroll = travel * MARQUEE_EVERY
+      local loop = MARQUEE_HOLD + scroll + MARQUEE_HOLD + scroll
+      local t = self.counter % loop
+      local dx = 0
+      if t < MARQUEE_HOLD then
+        dx = 0
+      elseif t < MARQUEE_HOLD + scroll then
+        dx = math.floor((t - MARQUEE_HOLD) / MARQUEE_EVERY)
+      elseif t < MARQUEE_HOLD + scroll + MARQUEE_HOLD then
+        dx = travel
+      else
+        dx = travel - math.floor((t - MARQUEE_HOLD - scroll - MARQUEE_HOLD)
+          / MARQUEE_EVERY)
+      end
+      nameX = Layout.PANEL_X - dx
+    else
+      nameX = Layout.SPRITE_CX - math.floor(nameW / 2)
+    end
     love.graphics.setScissor(Layout.PANEL_X, Layout.PLATE_Y,
                              Layout.PANEL_W, 16)
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.rectangle("fill", Layout.SPRITE_CX - math.floor(plateW / 2),
       Layout.PLATE_Y, plateW, 16)
     love.graphics.setColor(0, 0, 0, 1)
-    Font.draw(nameText, Layout.SPRITE_CX - math.floor(nameW / 2), Layout.PLATE_Y)
+    Font.draw(nameText, nameX, Layout.PLATE_Y)
     Font.draw(levelText, Layout.SPRITE_CX - math.floor(levelW / 2),
       Layout.PLATE_Y + 8)
     love.graphics.setColor(1, 1, 1, 1)

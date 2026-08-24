@@ -814,12 +814,25 @@ T.check(drew("PAR") ~= nil, "the status condition prints")
 T.eq(#marks, 3, "a shiny DV spread draws the three-stroke diamond mark")
 
 -- the identity moved up to the panel: name over level above the sprite,
--- and the strip no longer repeats them
+-- and the strip no longer repeats them.  "FIXMON A" is eight glyphs -- one
+-- wider than the panel -- so it marquees: holds its start at the panel's
+-- left edge, then slides left to reveal the tail.
 local nameDraw = drew("FIXMON A")
 T.check(nameDraw ~= nil, "the mon's name draws on the plate")
 T.eq(nameDraw.y, 16, "the name sits at the panel plate's top row")
+T.eq(nameDraw.x, 96, "a long name holds its start at the panel's left edge")
 T.eq(drew(":L12") ~= nil, true, "the level sits under the name")
 T.eq(drew(("HP  %3d/%3d"):format(20, 20)).y, 88, "the strip starts at the HP row")
+
+stripGrid.counter = 84
+texts = {}
+Font.draw = function(text, x, ty)
+  texts[#texts + 1] = { text = tostring(text), x = x, y = ty }
+  return realDraw(text, x, ty)
+end
+stripGrid:draw()
+Font.draw = realDraw
+T.eq(drew("FIXMON A").x, 88, "the marquee slides the name left to reveal its tail")
 
 -- a plain mon draws the type line but neither mark
 stripGrid.session.sparse[1][1] = monOfSpecies("FIXMON_A", 5)
