@@ -9,6 +9,8 @@ local Font = require("src.render.Font")
 local PartyMenu = require("src.ui.PartyMenu")
 local Sprites = require("src.pokemon.Sprites")
 local Boxes = require("src.pokemon.Boxes")
+local Stats = require("src.pokemon.Stats")
+local TypeChart = require("src.battle.TypeChart")
 
 return function(mod)
   local function sibling(name)
@@ -96,6 +98,54 @@ return function(mod)
     return math.floor(self.counter / 16) % 2 == 1
   end
 
+  -- Dpad key repeat: a direction acts on the frame it is pressed, then,
+  -- after HELD_DELAY frames of being held, once every HELD_EVERY.  The grid
+  -- is 20 cells and Kanto is 12 boxes wide; walking either on single taps
+  -- is the mod's worst daily grind, and the Game Boy pad has no shoulder
+  -- button to page with (src/core/Input.lua:9-21), so the hold is the
+  -- pager.  A and B stay on wasPressed: drops and menus must never repeat.
+  local HELD_DELAY = 12
+  local HELD_EVERY = 4
+
+  -- Returns the direction to act on this frame, or nil.  The press edge
+  -- comes from wasPressed, not isDown: a tap can be pressed and released
+  -- inside one step, so the frame that acts may already read as up.  The
+  -- hold cadence then rides isDown from the direction the edge named.  Two
+  -- held directions resolve by check order, up and left first, which only
+  -- matters on a touch d-pad's diagonals.
+  local function heldDirection(self, input)
+    local pressed
+    for _, d in ipairs({ "up", "down", "left", "right" }) do
+      if input:wasPressed(d) then pressed = d break end
+    end
+    if pressed then
+      self.heldDir = pressed
+      self.heldCount = 0
+      self.heldFired = false
+      return pressed
+    end
+    local held
+    for _, d in ipairs({ "up", "down", "left", "right" }) do
+      if input:isDown(d) then held = d break end
+    end
+    if held ~= self.heldDir then
+      -- released, or switched, with no edge this frame: reset the cadence
+      self.heldDir = held
+      self.heldCount = 0
+      self.heldFired = false
+      return nil
+    end
+    if not held then return nil end
+    self.heldCount = self.heldCount + 1
+    local due = self.heldFired and HELD_EVERY or HELD_DELAY
+    if self.heldCount >= due then
+      self.heldFired = true
+      self.heldCount = 0
+      return held
+    end
+    return nil
+  end
+
   local function drawGrid(self)
     local box = self.session:box()
     for i = 1, Layout.COLS * Layout.ROWS do
@@ -141,16 +191,44 @@ return function(mod)
     -- rather than drawing text that the frame is about to cover.
     local rows = self.mode == "deposit"
       and Layout.STATS_ROWS_DEPOSIT or Layout.STATS_ROWS_BOX
-    local stats = mon.stats
     Font.draw(self.session:nameOf(mon), x, y)
     Font.draw((":L%d"):format(mon.level or 1), 112, y)
-    if not stats then return end
-    Font.draw(("HP  %3d/%3d"):format(mon.hp or 0, stats.hp or 0), x, y + row)
-    Font.draw(("ATK %3d"):format(stats.attack or 0), x, y + row * 2)
-    Font.draw(("DEF %3d"):format(stats.defense or 0), x2, y + row * 2)
+    -- Right end of the HP row: the shiny mark, then the status condition.
+    -- Both are storage facts the vanilla PC never showed -- a mon keeps its
+    -- status through storage, and a shiny is invisible until you already
+    -- know its DVs.  The mark is an asterisk rather than a star because the
+    -- text renders through the font's own glyph set, and "*" is guaranteed
+    -- in it.  "OK" is the no-condition value, not worth ink.
+    if Stats.isShiny(mon.dvs) then
+      Font.draw("*", 120, y + row)
+    end
+    if mon.status and mon.status ~= "OK" then
+      Font.draw(mon.status, 128, y + row)
+    end
+    local stats = mon.stats
+    if stats then
+      Font.draw(("HP  %3d/%3d"):format(mon.hp or 0, stats.hp or 0), x, y + row)
+      Font.draw(("ATK %3d"):format(stats.attack or 0), x, y + row * 2)
+      Font.draw(("DEF %3d"):format(stats.defense or 0), x2, y + row * 2)
+    end
     if rows >= 4 then
-      Font.draw(("SPD %3d"):format(stats.speed or 0), x, y + row * 3)
-      Font.draw(("SPC %3d"):format(stats.special or 0), x2, y + row * 3)
+      if stats then
+        Font.draw(("SPD %3d"):format(stats.speed or 0), x, y + row * 3)
+        Font.draw(("SPC %3d"):format(stats.special or 0), x2, y + row * 3)
+      end
+      -- The type line sits under SPD/SPC, in the strip's spare row -- box
+      -- mode only, since box C covers it in deposit.  Display names through
+      -- TypeChart for the same reason SummaryMenu does: PSYCHIC's stored
+      -- constant would print as "PSYCHIC_TYPE" (#214).
+      local def = self.session.data.pokemon[mon.species]
+      local t = def and def.types
+      if t and t[1] then
+        local line = TypeChart.displayName(t[1])
+        if t[2] then
+          line = line .. "/" .. TypeChart.displayName(t[2])
+        end
+        Font.draw(line, x, y + row * 4)
+      end
     end
   end
 
@@ -214,14 +292,6 @@ return function(mod)
       -- player into the withdraw half of the PC without them choosing it,
       -- and leave the menu one extra B press away.
       self.game.stack:pop()
-    elseif input:wasPressed("left") and self.partyCursor > 1 then
-      self.partyCursor = self.partyCursor - 1
-    elseif input:wasPressed("right") and self.partyCursor < #party then
-      self.partyCursor = self.partyCursor + 1
-    elseif input:wasPressed("up") then
-      self.session:pageBox(-1)
-    elseif input:wasPressed("down") then
-      self.session:pageBox(1)
     elseif input:wasPressed("a") then
       local ok, reason = self.session:deposit(self.partyCursor,
                                               self.session.save.currentBox)
@@ -229,6 +299,21 @@ return function(mod)
         self:say(reason)
       elseif self.partyCursor > #party then
         self.partyCursor = math.max(1, #party)
+      end
+    else
+      -- Left/right walk the party row (what to deposit); up/down page the
+      -- destination box (where it goes).  Both repeat on hold, which is
+      -- mostly the paging's win: the destination is 12 boxes away in each
+      -- direction.
+      local d = heldDirection(self, input)
+      if d == "left" and self.partyCursor > 1 then
+        self.partyCursor = self.partyCursor - 1
+      elseif d == "right" and self.partyCursor < #party then
+        self.partyCursor = self.partyCursor + 1
+      elseif d == "up" then
+        self.session:pageBox(-1)
+      elseif d == "down" then
+        self.session:pageBox(1)
       end
     end
   end
@@ -265,30 +350,33 @@ return function(mod)
       return
     end
 
-    local col = (self.cursor - 1) % Layout.COLS
-    local row = math.floor((self.cursor - 1) / Layout.COLS)
+    local d = heldDirection(self, input)
+    if d then
+      local col = (self.cursor - 1) % Layout.COLS
+      local row = math.floor((self.cursor - 1) / Layout.COLS)
 
-    if input:wasPressed("up") and row > 0 then
-      row = row - 1
-    elseif input:wasPressed("down") and row < Layout.ROWS - 1 then
-      row = row + 1
-    elseif input:wasPressed("left") then
-      if col > 0 then
-        col = col - 1
-      else
-        self.session:pageBox(-1)
-        col = Layout.COLS - 1
+      if d == "up" and row > 0 then
+        row = row - 1
+      elseif d == "down" and row < Layout.ROWS - 1 then
+        row = row + 1
+      elseif d == "left" then
+        if col > 0 then
+          col = col - 1
+        else
+          self.session:pageBox(-1)
+          col = Layout.COLS - 1
+        end
+      elseif d == "right" then
+        if col < Layout.COLS - 1 then
+          col = col + 1
+        else
+          self.session:pageBox(1)
+          col = 0
+        end
       end
-    elseif input:wasPressed("right") then
-      if col < Layout.COLS - 1 then
-        col = col + 1
-      else
-        self.session:pageBox(1)
-        col = 0
-      end
+
+      self.cursor = Layout.slotAt(col, row)
     end
-
-    self.cursor = Layout.slotAt(col, row)
   end
 
   function Screen:update(dt)
@@ -297,10 +385,16 @@ return function(mod)
 
     if self.mode == "deposit" then
       updateDeposit(self, input)
-      return
+    else
+      updateBoxMode(self, input)
     end
 
-    updateBoxMode(self, input)
+    -- The session outlives each grid push, so it is where the cursor lives
+    -- between visits: newGrid reads it back, and writing it every frame
+    -- here needs no exit hook.  Re-entering WITHDRAW puts you where you
+    -- left, the way the vanilla screen remembers its cursor.
+    self.session.cursor = self.cursor
+    self.session.partyCursor = self.partyCursor
   end
 
   -- Draws the party as a row of icons in the 16px gap between the grid and
@@ -435,13 +529,24 @@ return function(mod)
   -- a deposit in the same PC visit accumulate into a single dirty flag and
   -- a single write on the way out.
   local function newGrid(game, session, mode)
+    -- The cursor comes from the session, where Screen:update kept it, so a
+    -- grid reopened from the menu resumes where the last one stood.
+    -- partyCursor clamps to the party actually there: deposits shrink it
+    -- between visits.
+    local partyCursor = session.partyCursor or 1
+    local count = #session.save.party
+    if partyCursor > count then partyCursor = count end
+    if partyCursor < 1 then partyCursor = 1 end
     return setmetatable({
       game = game,
       session = session,
-      cursor = 1,
-      partyCursor = 1,
+      cursor = session.cursor or 1,
+      partyCursor = partyCursor,
       mode = mode,
       counter = 0,
+      heldDir = nil,
+      heldCount = 0,
+      heldFired = false,
     }, Screen)
   end
 

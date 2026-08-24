@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.9.0
+
+- Holding a d-pad direction now repeats: it acts on the press, then again
+  after a short delay, then steadily -- so walking the grid and paging
+  boxes no longer means tapping per step. A and B never repeat.
+- The grid remembers the cursor. Leaving to the WITHDRAW/DEPOSIT menu and
+  coming back puts you on the cell you left, in deposit mode too, with the
+  party cursor clamped to the party that is actually there.
+- The stats strip shows three facts the vanilla PC never did: the focused
+  mon's types (box view; deposit mode covers that row with the party
+  frame), a status condition if it carries one, and a `*` mark when its DVs
+  are the shiny spread.
+
 ## 0.8.0
 
 - Renamed to Bill's PC Plus (id `bills_pc_plus`), from Modern PC Boxes.

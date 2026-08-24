@@ -16,7 +16,7 @@ local game = {
   data = Data,
   save = { party = {}, boxes = nil, currentBox = 1 },
   stack = { push = function() end },
-  input = { wasPressed = function() return false end },
+  input = { wasPressed = function() return false end, isDown = function() return false end },
 }
 
 -- The registered factory now returns the WITHDRAW/DEPOSIT menu, matching
@@ -69,16 +69,34 @@ T.check(okDraw3, "drawing a mon with no stats block succeeds: " .. tostring(draw
 
 -- ------- cursor movement
 
--- the input double mirrors tests/mod_ui_tests.lua's queue idiom
+-- the input double mirrors tests/mod_ui_tests.lua's queue idiom, plus the
+-- held state the dpad repeat reads: a tap is one frame of down AND pressed;
+-- hold() keeps only down, so no further pressed edges fire
 local function press(state, btn)
   state.game.input.queue = { [btn] = true }
+  state.game.input.down = { [btn] = true }
   state:update(1 / 60)
   state.game.input.queue = {}
+  state.game.input.down = {}
+end
+
+-- hold() keeps the button down for frames frames, the way a finger lands
+-- and stays; edge=true also presses on the first frame.  Held-only frames
+-- run no pressed edge, which is what distinguishes a hold from a tap.
+local function hold(state, btn, frames, edge)
+  for i = 1, frames do
+    state.game.input.queue = (edge and i == 1) and { [btn] = true } or {}
+    state.game.input.down = { [btn] = true }
+    state:update(1 / 60)
+  end
+  state.game.input.queue, state.game.input.down = {}, {}
 end
 
 game.input = {
   queue = {},
+  down = {},
   wasPressed = function(self, btn) return self.queue[btn] or false end,
+  isDown = function(self, btn) return self.down[btn] or false end,
 }
 
 local nav = openGrid(game, "WITHDRAW POKéMON")
@@ -201,8 +219,9 @@ dep.game = {
   data = Data,
   save = game.save,
   stack = { push = function() end, pop = function() depPops = depPops + 1 end },
-  input = { queue = {},
-            wasPressed = function(self, b) return self.queue[b] or false end },
+  input = { queue = {}, down = {},
+            wasPressed = function(self, b) return self.queue[b] or false end,
+            isDown = function(self, b) return self.down[b] or false end },
 }
 press(dep, "b")
 T.eq(depPops, 1, "B in deposit mode pops back to the menu")
@@ -220,7 +239,7 @@ local StateStack = require("src.core.StateStack")
 local opaqueGame = {
   data = Data,
   save = { party = {}, boxes = nil, currentBox = 1 },
-  input = { wasPressed = function() return false end },
+  input = { wasPressed = function() return false end, isDown = function() return false end },
 }
 local st = setmetatable({}, { __index = StateStack })
 st:init()
@@ -245,7 +264,7 @@ local menuGame = {
   data = Data,
   save = { party = {}, boxes = nil, currentBox = 1 },
   stack = { push = function() end, pop = function() end },
-  input = { wasPressed = function() return false end },
+  input = { wasPressed = function() return false end, isDown = function() return false end },
   writeSave = function() end,
 }
 local entry = Screens.get(menuGame, "BoxMenu").new(menuGame)
@@ -271,7 +290,7 @@ local exitGame = {
   data = Data,
   save = { party = {}, boxes = nil, currentBox = 1 },
   stack = { push = function() end, pop = function() end },
-  input = { wasPressed = function() return false end },
+  input = { wasPressed = function() return false end, isDown = function() return false end },
   writeSave = function() writes = writes + 1 end,
 }
 local clean = Screens.get(exitGame, "BoxMenu").new(exitGame)
@@ -289,15 +308,16 @@ T.check(type(clean.onCancel) == "function", "backing out of the menu also commit
 local backGame = {
   data = Data,
   save = { party = {}, boxes = nil, currentBox = 1 },
-  input = { wasPressed = function() return false end },
+  input = { wasPressed = function() return false end, isDown = function() return false end },
   writeSave = function() error("the grid must not write; the menu owns exit") end,
 }
 local popped = 0
 backGame.stack = { push = function() end, pop = function() popped = popped + 1 end }
 local backGrid = openGrid(backGame, "WITHDRAW POKéMON")
 backGrid.session.dirty = true
-backGame.input = { queue = {},
-  wasPressed = function(self, b) return self.queue[b] or false end }
+backGame.input = { queue = {}, down = {},
+  wasPressed = function(self, b) return self.queue[b] or false end,
+  isDown = function(self, b) return self.down[b] or false end }
 backGrid.game = backGame
 press(backGrid, "b")
 T.eq(popped, 1, "B in the grid pops back to the menu")
@@ -306,8 +326,9 @@ T.eq(popped, 1, "B in the grid pops back to the menu")
 local noToggle = openGrid(menuGame, "WITHDRAW POKéMON")
 noToggle.game = { data = Data, save = menuGame.save,
   stack = { push = function() end, pop = function() end },
-  input = { queue = {},
-            wasPressed = function(self, b) return self.queue[b] or false end } }
+  input = { queue = {}, down = {},
+            wasPressed = function(self, b) return self.queue[b] or false end,
+            isDown = function(self, b) return self.down[b] or false end } }
 press(noToggle, "start")
 T.eq(noToggle.mode, "box", "START no longer switches to deposit mode")
 
@@ -335,7 +356,7 @@ local frameGame = {
   data = Data,
   save = { party = {}, boxes = nil, currentBox = 1 },
   stack = { push = function() end, pop = function() end },
-  input = { wasPressed = function() return false end },
+  input = { wasPressed = function() return false end, isDown = function() return false end },
 }
 local frameGrid = openGrid(frameGame, "WITHDRAW POKéMON")
 frameGame.save.boxes[1] = {
@@ -371,7 +392,7 @@ local depFrameGame = {
       stats = { hp = 20, attack = 12, defense = 12, speed = 12, special = 12 } },
   }, boxes = nil, currentBox = 1 },
   stack = { push = function() end, pop = function() end },
-  input = { wasPressed = function() return false end },
+  input = { wasPressed = function() return false end, isDown = function() return false end },
 }
 local depFrameGrid = openGrid(depFrameGame, "DEPOSIT POKéMON")
 gfx.rectangle = function(mode, x, y, w, h)
@@ -430,7 +451,7 @@ local curGame = {
   data = Data,
   save = { party = {}, boxes = nil, currentBox = 1 },
   stack = { push = function() end, pop = function() end },
-  input = { wasPressed = function() return false end },
+  input = { wasPressed = function() return false end, isDown = function() return false end },
 }
 local curGrid, stubs, strokes = captureCursor(curGame, "WITHDRAW POKéMON",
   function(g)
@@ -485,7 +506,7 @@ local depCurGame = {
       stats = { hp = 20, attack = 12, defense = 12, speed = 12, special = 12 } },
   }, boxes = nil, currentBox = 1 },
   stack = { push = function() end, pop = function() end },
-  input = { wasPressed = function() return false end },
+  input = { wasPressed = function() return false end, isDown = function() return false end },
 }
 local _, depStubs = captureCursor(depCurGame, "DEPOSIT POKéMON", function(g)
   g.partyCursor = 2
@@ -523,7 +544,7 @@ local carryGame = {
   data = Data,
   save = { party = {}, boxes = nil, currentBox = 1 },
   stack = { push = function() end, pop = function() end },
-  input = { wasPressed = function() return false end },
+  input = { wasPressed = function() return false end, isDown = function() return false end },
 }
 local carryGrid = openGrid(carryGame, "WITHDRAW POKéMON")
 carryGame.save.boxes[1] = {
@@ -561,7 +582,7 @@ local dividerGame = {
   data = Data,
   save = { party = {}, boxes = nil, currentBox = 1 },
   stack = { push = function() end, pop = function() end },
-  input = { wasPressed = function() return false end },
+  input = { wasPressed = function() return false end, isDown = function() return false end },
 }
 local dividerGrid = openGrid(dividerGame, "WITHDRAW POKéMON")
 local codes = {}
@@ -599,7 +620,7 @@ local function exitWith(dirty, row)
   local g = {
     data = Data,
     save = { party = {}, boxes = nil, currentBox = 1, player = { name = "RED" } },
-    input = { wasPressed = function() return false end },
+    input = { wasPressed = function() return false end, isDown = function() return false end },
     writeSave = function() writes = writes + 1 end,
   }
   g.stack = { push = function(_, st) pushed[#pushed + 1] = st end,
@@ -639,6 +660,162 @@ local _, menu3, pushed3, writes3 = exitWith(true, "seeya")
 pushed3[1].onDone()
 T.eq(writes3(), 1, "one write")
 T.eq(menu3.session.dirty, false, "the session is clean after committing")
+
+-- ------- dpad repeat
+-- A held direction acts on the press frame, then after HELD_DELAY frames
+-- again, then once every HELD_EVERY.  Every nav assertion above is a tap
+-- and must behave exactly as before; this pins the hold cadence.
+local rep = openGrid(game, "WITHDRAW POKéMON")
+game.save.currentBox = 1
+rep.cursor = 1
+
+hold(rep, "right", 1, true)
+T.eq(rep.cursor, 2, "the press frame acts at once")
+hold(rep, "right", 11)
+T.eq(rep.cursor, 2, "a hold does not repeat inside the initial delay")
+hold(rep, "right", 1)
+T.eq(rep.cursor, 3, "the first repeat lands on the HELD_DELAY frame")
+hold(rep, "right", 4)
+T.eq(rep.cursor, 4, "and further repeats land every HELD_EVERY frames")
+
+-- holding a direction at a grid edge pages one box per repeat, no faster
+rep.cursor = 5
+game.save.currentBox = 1
+hold(rep, "right", 1, true)
+T.eq(game.save.currentBox, 2, "the press frame at the edge pages once")
+hold(rep, "right", 11)
+T.eq(game.save.currentBox, 2, "the hold delay applies to paging too")
+hold(rep, "right", 1)
+T.eq(rep.cursor, 2,
+  "after the page the hold walks the new box in from its wrapped column")
+T.eq(game.save.currentBox, 2,
+  "and does not page again until the cursor reaches the far edge")
+
+-- A held down opens its menu exactly once
+local pushedA = {}
+local heldGame = {
+  data = Data,
+  save = { party = {}, boxes = nil, currentBox = 1 },
+  stack = { push = function(_, st) pushedA[#pushedA + 1] = st end,
+            pop = function() end },
+  input = { queue = {}, down = {},
+            wasPressed = function(self, b) return self.queue[b] or false end,
+            isDown = function(self, b) return self.down[b] or false end },
+}
+local heldGrid = openGrid(heldGame, "WITHDRAW POKéMON")
+heldGame.save.boxes[1] = { monOfSpecies("FIXMON_A", 5) }
+heldGrid.cursor = 1
+heldGame.input.queue = { a = true }
+heldGame.input.down = { a = true }
+heldGrid:update(1 / 60)
+T.eq(#pushedA, 1, "A opens its menu on the press frame")
+for _ = 1, 24 do
+  heldGame.input.queue = {}
+  heldGame.input.down = { a = true }
+  heldGrid:update(1 / 60)
+end
+T.eq(#pushedA, 1, "and A held down never opens another")
+heldGame.input.queue, heldGame.input.down = {}, {}
+
+-- ------- the cursor survives the menu round-trip
+local perGame = {
+  data = Data,
+  save = { party = {}, boxes = nil, currentBox = 1 },
+  stack = { push = function() end, pop = function() end },
+  input = { queue = {}, down = {},
+            wasPressed = function(self, b) return self.queue[b] or false end,
+            isDown = function(self, b) return self.down[b] or false end },
+}
+local perGrid, perMenu = openGrid(perGame, "WITHDRAW POKéMON")
+press(perGrid, "down")
+press(perGrid, "right")
+T.eq(perGrid.cursor, 7, "the cursor moved two steps")
+local reopened = {}
+perGame.stack = { push = function(_, st) reopened[#reopened + 1] = st end,
+                  pop = function() end }
+perMenu.items[1].onSelect()
+T.eq(reopened[1].cursor, 7, "a reopened grid resumes at the cursor it left off")
+
+-- the party cursor comes back too, clamped to the party that is there
+perGame.save.party = {
+  monOfSpecies("FIXMON_A", 5), monOfSpecies("FIXMON_B", 6),
+  monOfSpecies("FIXMON_C", 7),
+}
+local depPer, depPerMenu = openGrid(perGame, "DEPOSIT POKéMON")
+press(depPer, "right")
+press(depPer, "right")
+T.eq(depPer.partyCursor, 3, "the party cursor moved to the last mon")
+depPerMenu.session.partyCursor = 9
+local depAgain = {}
+perGame.stack = { push = function(_, st) depAgain[#depAgain + 1] = st end,
+                  pop = function() end }
+depPerMenu.items[2].onSelect()
+T.eq(depAgain[1].partyCursor, 3,
+  "a party cursor past the party clamps back to its end")
+
+-- ------- the stats strip shows type, status and shininess
+Data.pokemon.FIXMON_A = Data.pokemon.FIXMON_A or {}
+Data.pokemon.FIXMON_A.types = { "NORMAL", "FLYING" }
+local stripGame = {
+  data = Data,
+  save = { party = {}, boxes = nil, currentBox = 1 },
+  stack = { push = function() end, pop = function() end },
+  input = { wasPressed = function() return false end,
+            isDown = function() return false end },
+}
+local stripGrid = openGrid(stripGame, "WITHDRAW POKéMON")
+stripGame.save.boxes[1] = {
+  { species = "FIXMON_A", level = 12, hp = 20,
+    dvs = { attack = 15, defense = 10, speed = 10, special = 10 },
+    statExp = {}, moves = {}, status = "PAR",
+    stats = { hp = 20, attack = 12, defense = 12, speed = 12, special = 12 } },
+}
+stripGrid.counter = 0
+local texts = {}
+local realDraw = Font.draw
+Font.draw = function(text, x, ty)
+  texts[#texts + 1] = { text = tostring(text), x = x, y = ty }
+  return realDraw(text, x, ty)
+end
+stripGrid:draw()
+Font.draw = realDraw
+
+local function drew(t)
+  for _, d in ipairs(texts) do
+    if d.text == t then return d end
+  end
+  return nil
+end
+T.check(drew("NORMAL/FLYING") ~= nil, "both types print on one slash-joined line")
+T.check(drew("PAR") ~= nil, "the status condition prints")
+T.check(drew("*") ~= nil, "a shiny DV spread prints the shiny mark")
+
+-- a plain mon draws the type line but neither mark
+stripGame.save.boxes[1] = { monOfSpecies("FIXMON_A", 5) }
+stripGrid.counter = 0
+texts = {}
+Font.draw = function(text, x, ty)
+  texts[#texts + 1] = { text = tostring(text), x = x, y = ty }
+  return realDraw(text, x, ty)
+end
+stripGrid:draw()
+Font.draw = realDraw
+T.check(drew("NORMAL/FLYING") ~= nil, "types still print for a plain mon")
+T.check(drew("*") == nil, "no shiny mark without the DV spread")
+T.check(drew("PAR") == nil, "no status without a condition")
+
+-- and in deposit mode the type line stays hidden under box C
+stripGame.save.party = { monOfSpecies("FIXMON_A", 5) }
+stripGame.save.boxes[1] = {}
+local depStrip = openGrid(stripGame, "DEPOSIT POKéMON")
+texts = {}
+Font.draw = function(text, x, ty)
+  texts[#texts + 1] = { text = tostring(text), x = x, y = ty }
+  return realDraw(text, x, ty)
+end
+depStrip:draw()
+Font.draw = realDraw
+T.check(drew("NORMAL/FLYING") == nil, "deposit mode hides the type line under box C")
 
 run.release()
 Screens.invalidate()
