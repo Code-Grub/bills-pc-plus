@@ -824,7 +824,7 @@ T.eq(nameDraw.x, 96, "a long name holds its start at the panel's left edge")
 T.eq(drew(":L12") ~= nil, true, "the level sits under the name")
 T.eq(drew(("HP  %3d/%3d"):format(20, 20)).y, 88, "the strip starts at the HP row")
 
-stripGrid.counter = 84
+stripGrid.counter = 130
 texts = {}
 Font.draw = function(text, x, ty)
   texts[#texts + 1] = { text = tostring(text), x = x, y = ty }

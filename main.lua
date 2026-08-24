@@ -206,8 +206,8 @@ return function(mod)
     -- its start, slides left until the tail shows, holds, and slides back.
     -- Ping-pong on the frame counter, so it carries no state and restarts
     -- with the screen.
-    local MARQUEE_HOLD = 60
-    local MARQUEE_EVERY = 3
+    local MARQUEE_HOLD = 90
+    local MARQUEE_EVERY = 5
     local nameText = self.session:nameOf(mon)
     local levelText = (":L%d"):format(mon.level or 1)
     local nameW, levelW = #nameText * 8, #levelText * 8
