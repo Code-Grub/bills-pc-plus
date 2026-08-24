@@ -96,16 +96,18 @@ return function(mod)
       -- hand-drawn cousin.  Same school as the cursor stubs and the shiny
       -- mark -- fills on whole pixels.
       local label = ("BOX%d"):format(n)
-      Font.draw(label, 16, Layout.HEADER_Y)
-      local ax = 10
+      Font.draw(label, Layout.HEADER_X, Layout.HEADER_Y)
+      -- the stacked pair marks the panel boundary: label and count sit
+      -- exactly where box view's do, and the arrows take the empty row
+      -- above the plate
+      local ax = 98
       love.graphics.rectangle("fill", ax, 8, 1, 1)
       love.graphics.rectangle("fill", ax - 1, 9, 3, 1)
       love.graphics.rectangle("fill", ax - 2, 10, 5, 1)
       love.graphics.rectangle("fill", ax - 2, 13, 5, 1)
       love.graphics.rectangle("fill", ax - 1, 14, 3, 1)
       love.graphics.rectangle("fill", ax, 15, 1, 1)
-      -- an 8px gap after the label, wherever its width lands
-      Font.draw(countText, 16 + #label * 8 + 8, Layout.HEADER_Y)
+      Font.draw(countText, 48, Layout.HEADER_Y)
     else
       -- The count lives in the box window, right-aligned to the divider.
       -- The label gives up its space so the two never read as one number:

@@ -218,8 +218,8 @@ love.graphics.rectangle = function(mode, x, y2, w, h)
 end
 dep:draw()
 love.graphics.rectangle = arrowRect
-T.eq(#arrowFills, 6, "the header stacks up and down triangles beside the label")
-T.eq(arrowFills[1].x, 10, "the up arrow's apex leads its base")
+T.eq(#arrowFills, 6, "the header stacks up and down triangles at the panel edge")
+T.eq(arrowFills[1].x, 98, "the up arrow's apex leads its base")
 T.check(arrowFills[4].y > arrowFills[1].y + 2,
   "the down arrow stacks under the up arrow, with air between")
 
