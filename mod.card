@@ -1,6 +1,6 @@
 -- Sharing metadata; read by tooling and the manager detail pane.
 return {
-  summary = "Bill's PC as a grid, with free box paging and grab-and-place moves.",
+  summary = "Bill's PC as a grid, with free box paging, gaps, and grab-and-place moves.",
   author = "camwrightdc",
   tags = { "ui", "quality-of-life", "storage" },
   differences = {
@@ -9,10 +9,10 @@ return {
       "changing box no longer forces a save",
     },
     added = {
-      "pick up and drop to rearrange within and across boxes",
+      "pick up and drop to rearrange within and across boxes, gaps included",
       "front sprite and condensed stats shown beside the grid",
     },
-    known = { "boxes stay packed, so mons cannot be left in scattered slots" },
+    known = { "gaps ride in the engine save, not the cartridge format: a .sav export packs each box in reading order, an import refills solid" },
   },
   compat = { engine = ">=1.0.0 <2.0.0", modApi = 2 },
 }

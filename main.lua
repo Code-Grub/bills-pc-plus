@@ -90,7 +90,8 @@ return function(mod)
     local fmt = self.mode == "deposit" and "^BOX %2dv" or "<BOX %2d>"
     Font.draw(fmt:format(n), Layout.HEADER_X, Layout.HEADER_Y)
     -- right-aligned inside the frame: 5 glyphs ending at the interior edge
-    Font.draw(("%2d/%2d"):format(#self.session:box(), Boxes.CAPACITY),
+    -- count() not #: a sparse box holds nils, so # is meaningless
+    Font.draw(("%2d/%2d"):format(self.session:count(), Boxes.CAPACITY),
               112, Layout.HEADER_Y)
   end
 

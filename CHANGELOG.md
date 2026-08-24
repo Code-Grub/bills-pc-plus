@@ -2,6 +2,13 @@
 
 ## 0.9.0
 
+- Boxes can hold gaps. Drop a Pokemon on any free cell and the others stay
+  exactly where they are -- no more compaction. The cartridge save cannot
+  encode a hole, so the layout rides in the engine save beside it: a .sav
+  export packs each box in reading order, an import refills that box
+  solid, and a box the game changed outside the PC (a catch, a trade)
+  fills its gaps from the left on the next visit.
+- Deposit places into the destination box's first free cell, gaps included.
 - Holding a d-pad direction now repeats: it acts on the press, then again
   after a short delay, then steadily -- so walking the grid and paging
   boxes no longer means tapping per step. A and B never repeat.

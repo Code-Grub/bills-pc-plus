@@ -19,13 +19,68 @@ local function newGame()
   return game, function() return writes end
 end
 
+local function monOf(species, level)
+  return { species = species, level = level or 5, hp = 10,
+           dvs = { attack = 8, defense = 8, speed = 8, special = 8 },
+           statExp = {}, moves = {} }
+end
+
+-- the occupied cells of a sparse box as "cell:species" pairs, in cell
+-- order -- the one-line shape of a layout
+local function layoutOf(s, b)
+  local names = {}
+  for i = 1, Boxes.CAPACITY do
+    if s.sparse[b][i] then
+      names[#names + 1] = i .. ":" .. s.sparse[b][i].species
+    end
+  end
+  return table.concat(names, ",")
+end
+
 -- ------- construction
 
 local game = newGame()
+BoxSession.new(game)
+game.save.boxes[1] = { monOf("FIXMON_A"), monOf("FIXMON_B") }
 local s = BoxSession.new(game)
 T.eq(#game.save.boxes, 12, "construction ensures all twelve boxes")
 T.eq(s.dirty, false, "a fresh session is clean")
 T.eq(s.carry, nil, "a fresh session carries nothing")
+T.eq(s.sparse[1][1].species, "FIXMON_A",
+  "with no saved layout the packed mons fill from the first cell")
+T.eq(s.sparse[1][2].species, "FIXMON_B", "and keep their packed order")
+T.eq(s.sparse[1][3], nil, "cells past the mons are gaps")
+T.eq(s.sparse[7][1], nil, "an untouched box is all gaps")
+T.eq(s:count(1), 2, "count reads occupied cells, where # reads nils")
+
+-- ------- a saved gap layout restores the exact cells
+
+local gL = newGame()
+BoxSession.new(gL)
+gL.save.boxes[2] = { monOf("FIXMON_A"), monOf("FIXMON_B"), monOf("FIXMON_C") }
+gL.save.bpp_layout = { [2] = { 1, 3, 10 } }
+local sL = BoxSession.new(gL)
+T.eq(layoutOf(sL, 2), "1:FIXMON_A,3:FIXMON_B,10:FIXMON_C",
+  "the layout's remembered cells take the packed mons in order")
+
+-- mons the layout does not know about -- caught or traded since the last
+-- PC visit -- take the lowest free cells, ascending
+gL.save.boxes[2] = { monOf("FIXMON_A"), monOf("FIXMON_B"), monOf("FIXMON_C"),
+                     monOf("FIXMON_D") }
+local sL2 = BoxSession.new(gL)
+T.eq(layoutOf(sL2, 2), "1:FIXMON_A,2:FIXMON_D,3:FIXMON_B,10:FIXMON_C",
+  "an unknown mon fills the first gap")
+
+-- a box holding more mons than the layout remembers (a .sav imported over
+-- a gapped layout) packs solid rather than losing mons
+local full = {}
+for i = 1, Boxes.CAPACITY do full[i] = monOf("FIXMON_B") end
+gL.save.boxes[2] = full
+local sL3 = BoxSession.new(gL)
+T.eq(sL3:count(2), Boxes.CAPACITY,
+  "more mons than remembered cells fills the box solid")
+T.eq(sL3.sparse[2][1] ~= nil and sL3.sparse[2][20] ~= nil, true,
+  "every cell from 1 to CAPACITY is occupied")
 
 -- ------- paging wraps both ways and never dirties
 
@@ -50,6 +105,30 @@ T.eq(s2.dirty, false, "commit clears the dirty flag")
 T.eq(s2:commit(), false, "committing twice writes once")
 T.eq(writes(), 1, "the second commit is a no-op")
 
+-- ------- commit packs the sparse layer and records the layout
+
+local gC, writesC = newGame()
+BoxSession.new(gC)
+gC.save.boxes[1] = { monOf("FIXMON_A"), monOf("FIXMON_B"), monOf("FIXMON_C") }
+local sC = BoxSession.new(gC)
+sC:pickUp(1, 2)
+T.eq(gC.save.boxes[1][2].species, "FIXMON_B",
+  "the packed layer is untouched while the mon is in hand")
+sC:drop(1, 6)
+T.eq(sC:commit(), true, "commit packs")
+T.eq(#gC.save.boxes[1], 3, "the packed box holds every mon, no holes")
+T.eq(gC.save.boxes[1][1].species, "FIXMON_A", "cell 1 packs first")
+T.eq(gC.save.boxes[1][2].species, "FIXMON_C", "cell 3 packs second")
+T.eq(gC.save.boxes[1][3].species, "FIXMON_B", "cell 6 packs third")
+T.eq(table.concat(gC.save.bpp_layout[1], ","), "1,3,6",
+  "the layout records the occupied cells ascending")
+T.eq(writesC(), 1, "the commit wrote once")
+
+-- and a fresh session over the same save restores the exact gaps
+local sC2 = BoxSession.new(gC)
+T.eq(layoutOf(sC2, 1), "1:FIXMON_A,3:FIXMON_C,6:FIXMON_B",
+  "the gaps survive a save round-trip")
+
 -- ------- withdraw
 
 -- Sound is required inline at call time, so swapping the loaded module
@@ -59,24 +138,19 @@ package.loaded["src.core.Sound"] = {
   playCry = function(_, species) cries[#cries + 1] = species end,
 }
 
-local function monOf(species, level)
-  return { species = species, level = level or 5, hp = 10,
-           dvs = { attack = 8, defense = 8, speed = 8, special = 8 },
-           statExp = {}, moves = {} }
-end
-
 local g3 = newGame()
 local s3 = BoxSession.new(g3)
-g3.save.boxes[1] = { monOf("FIXMON_A", 12) }
+s3.sparse[1][1] = monOf("FIXMON_A", 12)
 
 local ok, reason = s3:withdraw(1, 2)
-T.eq(ok, false, "withdrawing an empty slot is refused")
+T.eq(ok, false, "withdrawing an empty cell is refused")
 T.eq(reason, "no_mon", "the refusal names the reason")
 
 cries = {}
 T.eq(s3:withdraw(1, 1), true, "withdrawing a stored mon succeeds")
 T.eq(#g3.save.party, 1, "the mon reached the party")
-T.eq(#g3.save.boxes[1], 0, "the box slot was vacated")
+T.eq(s3.sparse[1][1], nil, "its cell is a gap")
+T.eq(g3.save.boxes[1][1], nil, "the packed layer waits for commit")
 T.eq(s3.dirty, true, "withdraw sets dirty")
 T.eq(#cries, 1, "withdraw plays exactly one cry")
 T.eq(cries[1], "FIXMON_A", "the cry is the withdrawn species")
@@ -88,11 +162,11 @@ T.eq(g3.stringBuffer, "FIXMON A", "stringBuffer carries the name for messages")
 local g4 = newGame()
 local s4 = BoxSession.new(g4)
 for i = 1, 6 do g4.save.party[i] = monOf("FIXMON_B") end
-g4.save.boxes[1] = { monOf("FIXMON_A") }
+s4.sparse[1][1] = monOf("FIXMON_A")
 local ok4, reason4 = s4:withdraw(1, 1)
 T.eq(ok4, false, "a full party refuses a withdrawal")
 T.eq(reason4, "party_full", "the refusal names the reason")
-T.eq(#g4.save.boxes[1], 1, "the refused mon stays in the box")
+T.eq(s4.sparse[1][1] ~= nil, true, "the refused mon stays in its cell")
 T.eq(s4.dirty, false, "a refused withdrawal does not dirty the session")
 
 -- ------- deposit
@@ -110,12 +184,25 @@ g5.save.currentBox = 3
 cries, happiness = {}, {}
 T.eq(s5:deposit(2, 3), true, "depositing into the chosen box succeeds")
 T.eq(#g5.save.party, 1, "the mon left the party")
-T.eq(#g5.save.boxes[3], 1, "the mon landed in box 3, not the current box by accident")
+T.eq(s5:count(3), 1, "the mon landed in box 3, not the current box by accident")
+T.eq(s5.sparse[3][1] ~= nil, true, "in the box's first free cell")
 T.eq(s5.dirty, true, "deposit sets dirty")
 T.eq(#cries, 1, "deposit plays exactly one cry")
 T.eq(#happiness, 1, "deposit fires the Pikachu happiness event once")
 T.eq(happiness[1], "DEPOSITED", "the event is DEPOSITED")
 T.eq(g5.boxNumString, "3", "boxNumString carries the destination for messages")
+
+-- a gap gets used before the tail
+g5.save.boxes[3] = { monOf("FIXMON_C") }
+local s5b = BoxSession.new(g5)
+local c = s5b.sparse[3][1]
+s5b.sparse[3][1] = nil
+s5b.sparse[3][4] = c
+T.eq(layoutOf(s5b, 3), "4:FIXMON_C", "the box now has a gap at cell 1")
+table.insert(g5.save.party, monOf("FIXMON_B"))
+T.eq(s5b:deposit(1, 3), true, "depositing into a gapped box succeeds")
+T.eq(s5b.sparse[3][1] ~= nil, true, "the mon took cell 1, the first free cell")
+T.eq(s5b:count(3), 2, "the gap at 4 is still there")
 
 -- the last party mon cannot leave
 local ok5, reason5 = s5:deposit(1, 3)
@@ -127,23 +214,20 @@ T.eq(#g5.save.party, 1, "the last mon stays in the party")
 local g6 = newGame()
 local s6 = BoxSession.new(g6)
 g6.save.party = { monOf("FIXMON_A"), monOf("FIXMON_B") }
-for i = 1, 20 do g6.save.boxes[2][i] = monOf("FIXMON_B") end
+for i = 1, Boxes.CAPACITY do s6.sparse[2][i] = monOf("FIXMON_B") end
 local ok6, reason6 = s6:deposit(2, 2)
 T.eq(ok6, false, "a full destination box refuses the deposit")
 T.eq(reason6, "box_full", "the refusal names the reason")
-T.eq(#g6.save.boxes[3], 0, "the mon did not overflow into the next box")
+T.eq(s6:count(3), 0, "the mon did not overflow into the next box")
 T.eq(#g6.save.party, 2, "the party is unchanged")
 
 -- ------- carry
 
-local function packed(box)
-  for i = 1, #box do if box[i] == nil then return false end end
-  return true
-end
-
 local g7 = newGame()
 local s7 = BoxSession.new(g7)
-g7.save.boxes[1] = { monOf("FIXMON_A"), monOf("FIXMON_B"), monOf("FIXMON_C") }
+s7.sparse[1][1] = monOf("FIXMON_A")
+s7.sparse[1][2] = monOf("FIXMON_B")
+s7.sparse[1][3] = monOf("FIXMON_C")
 
 local ok7, reason7 = s7:drop(1, 1)
 T.eq(ok7, false, "dropping with an empty hand is refused")
@@ -151,95 +235,97 @@ T.eq(reason7, "not_carrying", "the refusal names the reason")
 
 T.eq(s7:pickUp(1, 1), true, "picking up a stored mon succeeds")
 T.eq(s7.carry.mon.species, "FIXMON_A", "the hand holds the picked-up mon")
-T.eq(#g7.save.boxes[1], 2, "the source box compacted")
-T.eq(packed(g7.save.boxes[1]), true, "the source box has no hole")
-T.eq(g7.save.boxes[1][1].species, "FIXMON_B", "the remainder shifted down")
+T.eq(s7.sparse[1][1], nil, "its cell opened into a visible gap")
+T.eq(s7.sparse[1][2].species, "FIXMON_B",
+  "and nothing shifted -- the neighbours stay put")
 
 local ok8, reason8 = s7:pickUp(1, 1)
 T.eq(ok8, false, "picking up twice is refused")
 T.eq(reason8, "already_carrying", "the refusal names the reason")
 
 -- dropping on an occupied slot swaps: the occupant comes up into the hand
-local okS, reasonS = s7:drop(1, 1)
+local okS, reasonS = s7:drop(1, 2)
 T.eq(okS, true, "dropping on an occupied slot succeeds")
 T.eq(reasonS, "swapped", "the result reports a swap")
-T.eq(g7.save.boxes[1][1].species, "FIXMON_A", "the held mon took the slot")
+T.eq(s7.sparse[1][2].species, "FIXMON_A", "the held mon took the slot")
 T.eq(s7.carry.mon.species, "FIXMON_B", "the occupant is now held")
 
--- dropping past the end appends and empties the hand
-local okP, reasonP = s7:drop(1, 99)
-T.eq(okP, true, "dropping past the end succeeds")
+-- dropping on a free cell places and empties the hand -- any free cell,
+-- gaps included, with nothing reordering.  The freed cell is free, so the
+-- swapped occupant lands there.
+local okP, reasonP = s7:drop(1, 1)
+T.eq(okP, true, "dropping on the freed cell succeeds")
 T.eq(reasonP, "placed", "the result reports a placement")
 T.eq(s7.carry, nil, "the hand is empty after a placement")
-T.eq(#g7.save.boxes[1], 3, "the box is whole again")
-T.eq(packed(g7.save.boxes[1]), true, "the box still has no hole")
+T.eq(layoutOf(s7, 1), "1:FIXMON_B,2:FIXMON_A,3:FIXMON_C",
+  "the box is whole again, in the cells the drops chose")
 
 -- carrying across a box boundary
 local g8 = newGame()
 local s8 = BoxSession.new(g8)
-g8.save.boxes[1] = { monOf("FIXMON_A") }
+s8.sparse[1][1] = monOf("FIXMON_A")
 s8:pickUp(1, 1)
 s8:pageBox(1)
 T.eq(g8.save.currentBox, 2, "paging while carrying moves the view")
-T.eq(s8:drop(2, 1), true, "the carried mon drops into the new box")
-T.eq(#g8.save.boxes[1], 0, "it left the origin box")
-T.eq(#g8.save.boxes[2], 1, "it arrived in the destination box")
+T.eq(s8:drop(2, 5), true, "the carried mon drops into a free cell of the new box")
+T.eq(s8.sparse[1][1], nil, "it left a gap in the origin box")
+T.eq(s8.sparse[2][5] ~= nil, true, "it arrived in the destination box")
 T.eq(s8.dirty, true, "a cross-box move sets dirty")
 
--- cancelling returns the mon rather than stranding it
+-- a swap inside a completely full box still works: swapping is the only
+-- move a full box has, and it needs no free cell
+local gFull = newGame()
+local sFull = BoxSession.new(gFull)
+for i = 1, Boxes.CAPACITY do sFull.sparse[1][i] = monOf("FIXMON_B") end
+sFull.sparse[1][7] = monOf("FIXMON_A")
+sFull:pickUp(1, 7)
+T.eq(sFull:drop(1, 8), true, "a swap inside a full box succeeds")
+T.eq(sFull.sparse[1][8].species, "FIXMON_A", "the held mon took the swapped cell")
+T.eq(sFull.carry.mon.species, "FIXMON_B", "the occupant moved into the hand")
+T.eq(sFull.sparse[1][7], nil, "the swap opened a gap where the held mon sat")
+T.eq(sFull:count(1), Boxes.CAPACITY - 1, "the box never exceeded capacity")
+
+-- ------- cancelling returns the mon rather than stranding it
+
 local g9 = newGame()
 local s9 = BoxSession.new(g9)
-g9.save.boxes[4] = { monOf("FIXMON_A") }
+s9.sparse[4][1] = monOf("FIXMON_A")
 s9:pickUp(4, 1)
 T.eq(s9:cancelCarry(), true, "cancelling a carry succeeds")
 T.eq(s9.carry, nil, "the hand is empty after cancelling")
-T.eq(#g9.save.boxes[4], 1, "the mon went back to its origin box")
+T.eq(s9.sparse[4][1] ~= nil, true, "the mon went back to its origin cell")
 
--- cancelling falls back to another box when the origin filled up meanwhile
-local g10 = newGame()
-local s10 = BoxSession.new(g10)
-g10.save.boxes[4] = { monOf("FIXMON_A") }
-s10:pickUp(4, 1)
-for i = 1, Boxes.CAPACITY do g10.save.boxes[4][i] = monOf("FIXMON_B") end
-T.eq(#g10.save.boxes[4], Boxes.CAPACITY, "the origin box filled up while carrying")
-T.eq(s10:cancelCarry(), true, "cancelling still succeeds via the fallback")
-T.eq(s10.carry, nil, "the hand is empty after the fallback cancel")
-T.eq(#g10.save.boxes[4], Boxes.CAPACITY, "the full origin box was left alone")
-T.eq(#g10.save.boxes[1], 1, "the mon landed in the first box with room")
-T.eq(packed(g10.save.boxes[1]), true, "the destination box has no hole")
-
--- cancelling restores the mon to its original slot, not the end of the box
+-- cancelling falls back when the origin cell filled up meanwhile
 local g13 = newGame()
 local s13 = BoxSession.new(g13)
-g13.save.boxes[5] = { monOf("FIXMON_A"), monOf("FIXMON_B"), monOf("FIXMON_C") }
+s13.sparse[5][1] = monOf("FIXMON_A")
+s13.sparse[5][2] = monOf("FIXMON_B")
+s13.sparse[5][3] = monOf("FIXMON_C")
 s13:pickUp(5, 2)
-T.eq(s13:cancelCarry(), true, "cancelling a mid-box pickup succeeds")
-T.eq(s13.carry, nil, "the hand is empty after cancelling")
-local names13 = {}
-for i = 1, #g13.save.boxes[5] do names13[i] = g13.save.boxes[5][i].species end
-T.eq(table.concat(names13, ","), "FIXMON_A,FIXMON_B,FIXMON_C",
-  "the box order is restored, not reordered to A,C,B")
+s13.sparse[5][2] = monOf("FIXMON_D")
+T.eq(s13:cancelCarry(), true, "cancelling with the origin cell taken succeeds")
+T.eq(s13.sparse[5][4] ~= nil, true,
+  "the mon took the origin box's first free cell instead")
 
--- cancelling restores a pickup from the first slot to the first slot
-local g14 = newGame()
-local s14 = BoxSession.new(g14)
-g14.save.boxes[5] = { monOf("FIXMON_A"), monOf("FIXMON_B"), monOf("FIXMON_C") }
-s14:pickUp(5, 1)
-T.eq(s14:cancelCarry(), true, "cancelling a first-slot pickup succeeds")
-local names14 = {}
-for i = 1, #g14.save.boxes[5] do names14[i] = g14.save.boxes[5][i].species end
-T.eq(table.concat(names14, ","), "FIXMON_A,FIXMON_B,FIXMON_C",
-  "the box order is restored with the mon back in slot 1")
+-- and falls back to another box when the origin filled up completely
+local g10 = newGame()
+local s10 = BoxSession.new(g10)
+s10.sparse[4][1] = monOf("FIXMON_A")
+s10:pickUp(4, 1)
+for i = 1, Boxes.CAPACITY do s10.sparse[4][i] = monOf("FIXMON_B") end
+T.eq(s10:count(4), Boxes.CAPACITY, "the origin box filled up while carrying")
+T.eq(s10:cancelCarry(), true, "cancelling still succeeds via the fallback")
+T.eq(s10.carry, nil, "the hand is empty after the fallback cancel")
+T.eq(s10:count(4), Boxes.CAPACITY, "the full origin box was left alone")
+T.eq(s10.sparse[1][1] ~= nil, true, "the mon landed in the first box with room")
 
--- cancelling refuses rather than overflow a box when every box is full
+-- cancelling refuses rather than overflow when every cell of every box is full
 local g11 = newGame()
 local s11 = BoxSession.new(g11)
-g11.save.boxes[1] = { monOf("FIXMON_A") }
+s11.sparse[1][1] = monOf("FIXMON_A")
 s11:pickUp(1, 1)
 for i = 1, Boxes.COUNT do
-  local full = {}
-  for j = 1, Boxes.CAPACITY do full[j] = monOf("FIXMON_B") end
-  g11.save.boxes[i] = full
+  for j = 1, Boxes.CAPACITY do s11.sparse[i][j] = monOf("FIXMON_B") end
 end
 local okC, reasonC = s11:cancelCarry()
 T.eq(okC, false, "cancelling refuses when every box is full")
@@ -247,42 +333,37 @@ T.eq(reasonC, "storage_full", "the refusal names the reason")
 T.eq(s11.carry ~= nil, true, "the hand is still full")
 T.eq(s11.carry.mon.species, "FIXMON_A", "the held mon is unchanged")
 for i = 1, Boxes.COUNT do
-  T.eq(#g11.save.boxes[i], Boxes.CAPACITY, "box " .. i .. " did not exceed capacity")
+  T.eq(s11:count(i), Boxes.CAPACITY, "box " .. i .. " did not exceed capacity")
 end
-
--- dropping past the end of a full box is refused, not overflowed
-local g12 = newGame()
-local s12 = BoxSession.new(g12)
-g12.save.boxes[6] = { monOf("FIXMON_A") }
-s12:pickUp(6, 1)
-for i = 1, Boxes.CAPACITY do g12.save.boxes[6][i] = monOf("FIXMON_B") end
-local okF, reasonF = s12:drop(6, 99)
-T.eq(okF, false, "dropping past the end of a full box is refused")
-T.eq(reasonF, "box_full", "the refusal names the reason")
-T.eq(s12.carry ~= nil, true, "the hand is still full after the refusal")
-T.eq(#g12.save.boxes[6], Boxes.CAPACITY, "the box did not exceed capacity")
 
 -- ------- release
 
-local g10 = newGame()
-local s10 = BoxSession.new(g10)
-g10.save.boxes[1] = { monOf("FIXMON_A"), monOf("FIXMON_C") }
+local gr = newGame()
+local sr = BoxSession.new(gr)
+sr.sparse[1][1] = monOf("FIXMON_A")
+sr.sparse[1][2] = monOf("FIXMON_C")
 
 cries = {}
-T.eq(s10:release(1, 1), true, "releasing a stored mon succeeds")
-T.eq(#g10.save.boxes[1], 1, "the box lost the released mon")
-T.eq(g10.save.boxes[1][1].species, "FIXMON_C", "the remainder shifted down")
-T.eq(packed(g10.save.boxes[1]), true, "the box has no hole after a release")
+T.eq(sr:release(1, 1), true, "releasing a stored mon succeeds")
+T.eq(sr.sparse[1][1], nil, "the released mon's cell is a gap")
+T.eq(sr.sparse[1][2].species, "FIXMON_C",
+  "the survivor did not move -- release leaves a gap, not a shift")
 T.eq(#cries, 1, "release plays exactly one cry")
-T.eq(s10.dirty, true, "release sets dirty")
+T.eq(sr.dirty, true, "release sets dirty")
 
-local okR, reasonR = s10:release(1, 9)
-T.eq(okR, false, "releasing an empty slot is refused")
+-- and commit packs over the gap without reordering the survivor
+sr:commit()
+T.eq(#gr.save.boxes[1], 1, "the packed box holds the survivor alone")
+T.eq(gr.save.boxes[1][1].species, "FIXMON_C", "in its cell order")
+T.eq(table.concat(gr.save.bpp_layout[1], ","), "2", "the layout remembers cell 2")
+
+local okR, reasonR = sr:release(1, 9)
+T.eq(okR, false, "releasing an empty cell is refused")
 T.eq(reasonR, "no_mon", "the refusal names the reason")
 
-s10:pickUp(1, 1)
-local okC, reasonC = s10:release(1, 1)
-T.eq(okC, false, "releasing while carrying is refused")
-T.eq(reasonC, "carrying", "the refusal names the reason")
+sr:pickUp(1, 2)
+local okC2, reasonC2 = sr:release(1, 2)
+T.eq(okC2, false, "releasing while carrying is refused")
+T.eq(reasonC2, "carrying", "the refusal names the reason")
 
 T.finish("bills_pc_plus box_session")

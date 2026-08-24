@@ -165,18 +165,17 @@ pushed = {}
 press(act, "a")
 T.eq(#pushed, 0, "A while carrying opens no menu")
 T.eq(act.session.carry, nil, "A while carrying places the mon")
-T.eq(#game.save.boxes[1], 1, "the placed mon is back in the box")
+T.eq(act.session.sparse[1][3] ~= nil, true, "the placed mon took cell 3")
 
 -- B cancels a carry rather than exiting
-act.session:pickUp(1, 1)
+act.session:pickUp(1, 3)
 press(act, "b")
 T.eq(act.session.carry, nil, "B cancels the carry")
-T.eq(#game.save.boxes[1], 1, "the cancelled mon returned to a box")
+T.eq(act.session.sparse[1][3] ~= nil, true, "the cancelled mon returned to its cell")
 
 -- ------- deposit mode
 
-local dep = openGrid(game, "DEPOSIT POKéMON")
-game.save.currentBox = 1
+-- seeded before the grid opens: the sparse layer snapshots at construction
 game.save.boxes[1] = {}
 game.save.party = {
   { species = "FIXMON_A", level = 10, hp = 20, dvs = {}, statExp = {}, moves = {},
@@ -184,6 +183,8 @@ game.save.party = {
   { species = "FIXMON_B", level = 12, hp = 20, dvs = {}, statExp = {}, moves = {},
     stats = { hp = 20, attack = 12, defense = 12, speed = 12, special = 12 } },
 }
+local dep = openGrid(game, "DEPOSIT POKéMON")
+game.save.currentBox = 1
 
 T.eq(dep.mode, "deposit", "the DEPOSIT row opens the grid in deposit mode")
 T.eq(dep.partyCursor, 1, "the party cursor starts on the first mon")
@@ -207,7 +208,8 @@ T.check(okDep, "drawing deposit mode succeeds: " .. tostring(depErr))
 dep.partyCursor = 2
 press(dep, "a")
 T.eq(#game.save.party, 1, "A deposited the highlighted party mon")
-T.eq(#game.save.boxes[1], 1, "the mon landed in the destination box")
+T.eq(dep.session:count(1), 1, "the mon landed in the destination box")
+T.eq(dep.session.sparse[1][1] ~= nil, true, "in its first free cell")
 T.eq(dep.session.dirty, true, "depositing dirties the session")
 
 -- B in deposit mode must return to the WITHDRAW/DEPOSIT menu, exactly as
@@ -546,22 +548,26 @@ local carryGame = {
   stack = { push = function() end, pop = function() end },
   input = { wasPressed = function() return false end, isDown = function() return false end },
 }
-local carryGrid = openGrid(carryGame, "WITHDRAW POKéMON")
-carryGame.save.boxes[1] = {
-  monOfSpecies("FIXMON_A", 5),
-  monOfSpecies("FIXMON_B", 10),
-  monOfSpecies("FIXMON_C", 15),
+-- the sparse layer snapshots the save at construction, so the box is
+-- seeded before the grid opens
+carryGame.save.boxes = {
+  {
+    monOfSpecies("FIXMON_A", 5),
+    monOfSpecies("FIXMON_B", 10),
+    monOfSpecies("FIXMON_C", 15),
+  },
 }
+local carryGrid = openGrid(carryGame, "WITHDRAW POKéMON")
 
 carryGrid.cursor = 2
 T.eq(carryGrid:focused().species, "FIXMON_B", "the panel shows the mon under the cursor")
 
 carryGrid.session:pickUp(1, 2)
-T.eq(#carryGame.save.boxes[1], 2, "picking up compacted the box, as it must")
-T.eq(carryGame.save.boxes[1][2].species, "FIXMON_C",
-  "FIXMON_C has shifted into the slot the cursor is on")
+T.eq(carryGrid.session.sparse[1][2], nil, "picking up opened a visible gap")
+T.eq(carryGame.save.boxes[1][2].species, "FIXMON_B",
+  "the packed layer is untouched until commit")
 T.eq(carryGrid:focused().species, "FIXMON_B",
-  "the panel still shows the CARRIED mon, not the one that shifted under the cursor")
+  "the panel still shows the CARRIED mon, not the gap under the cursor")
 
 -- moving the cursor while carrying does not change what the panel shows
 carryGrid.cursor = 5
@@ -569,8 +575,9 @@ T.eq(carryGrid:focused().species, "FIXMON_B",
   "the carried mon stays on the panel wherever the cursor goes")
 
 -- and the panel goes back to reading the cell once the mon is placed
-carryGrid.session:drop(1, 99)
+carryGrid.session:drop(1, 4)
 T.eq(carryGrid.session.carry, nil, "the drop emptied the hand")
+T.eq(carryGrid.session.sparse[1][4] ~= nil, true, "the mon took the free cell")
 carryGrid.cursor = 1
 T.eq(carryGrid:focused().species, "FIXMON_A",
   "with an empty hand the panel reads the cell again")
@@ -697,7 +704,9 @@ T.eq(game.save.currentBox, 2,
 local pushedA = {}
 local heldGame = {
   data = Data,
-  save = { party = {}, boxes = nil, currentBox = 1 },
+  save = { party = {}, boxes = {
+    { monOfSpecies("FIXMON_A", 5) },
+  }, currentBox = 1 },
   stack = { push = function(_, st) pushedA[#pushedA + 1] = st end,
             pop = function() end },
   input = { queue = {}, down = {},
@@ -705,7 +714,6 @@ local heldGame = {
             isDown = function(self, b) return self.down[b] or false end },
 }
 local heldGrid = openGrid(heldGame, "WITHDRAW POKéMON")
-heldGame.save.boxes[1] = { monOfSpecies("FIXMON_A", 5) }
 heldGrid.cursor = 1
 heldGame.input.queue = { a = true }
 heldGame.input.down = { a = true }
@@ -760,18 +768,19 @@ Data.pokemon.FIXMON_A = Data.pokemon.FIXMON_A or {}
 Data.pokemon.FIXMON_A.types = { "NORMAL", "FLYING" }
 local stripGame = {
   data = Data,
-  save = { party = {}, boxes = nil, currentBox = 1 },
+  save = { party = {}, boxes = {
+    {
+      { species = "FIXMON_A", level = 12, hp = 20,
+        dvs = { attack = 15, defense = 10, speed = 10, special = 10 },
+        statExp = {}, moves = {}, status = "PAR",
+        stats = { hp = 20, attack = 12, defense = 12, speed = 12, special = 12 } },
+    },
+  }, currentBox = 1 },
   stack = { push = function() end, pop = function() end },
   input = { wasPressed = function() return false end,
             isDown = function() return false end },
 }
 local stripGrid = openGrid(stripGame, "WITHDRAW POKéMON")
-stripGame.save.boxes[1] = {
-  { species = "FIXMON_A", level = 12, hp = 20,
-    dvs = { attack = 15, defense = 10, speed = 10, special = 10 },
-    statExp = {}, moves = {}, status = "PAR",
-    stats = { hp = 20, attack = 12, defense = 12, speed = 12, special = 12 } },
-}
 stripGrid.counter = 0
 local texts = {}
 local realDraw = Font.draw
@@ -793,7 +802,7 @@ T.check(drew("PAR") ~= nil, "the status condition prints")
 T.check(drew("*") ~= nil, "a shiny DV spread prints the shiny mark")
 
 -- a plain mon draws the type line but neither mark
-stripGame.save.boxes[1] = { monOfSpecies("FIXMON_A", 5) }
+stripGrid.session.sparse[1][1] = monOfSpecies("FIXMON_A", 5)
 stripGrid.counter = 0
 texts = {}
 Font.draw = function(text, x, ty)

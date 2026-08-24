@@ -29,8 +29,9 @@ something, and it tells you when it does.
 - **Free box paging** — walk the cursor off the left or right edge of the grid
   to page between boxes. No forced save when you switch; `save.currentBox` only
   persists if you move something.
-- **Grab-and-place** — pick a Pokemon up with `A`, drop it on any slot. Swap if
-  the slot is occupied, append if empty. Cross-box moves just work.
+- **Grab-and-place, with gaps** — pick a Pokemon up with `A`, drop it on any
+  cell. Swap if the slot is occupied, place if it is free, and the rest stay
+  exactly where they were. Cross-box moves just work.
 - **Inline art and stats panel** — the selected Pokemon's front sprite and
   condensed stats (level, HP, ATK/DEF/SPD/SPC) sit beside the grid, and keep
   describing the Pokemon in hand while you carry it.
@@ -86,15 +87,17 @@ and depositing is `B` then pick.
 
 ## Known limitations
 
-- **Boxes stay packed.** Occupied slots always run 1..n with no gaps — the
-  cartridge save format stores a count byte followed by that many contiguous
-  Pokemon, so a decorative gap has no encoding and would be destroyed on
-  export. Rearranging, swapping and cross-box moves all work; only scattered
-  placement is unavailable.
+- **Gaps are a display layer, not cartridge data.** The Gen 1 save format
+  stores a count byte followed by that many contiguous Pokemon — no hole
+  encoding — so the layout rides in the engine save beside it. Exporting a
+  .sav packs each box in reading order; importing one refills that box
+  solid. A box the game changed outside the PC (a catch, a trade) fills
+  its gaps from the left on the next visit.
 - `save.currentBox` does not persist if the player only browsed. Changing box
   never marks the save dirty, since that is the point of the feature.
-- If every box is full, cancelling a carry refuses with a message and the
-  Pokemon stays in hand, rather than creating an over-capacity box.
+- If every cell of every box is full, cancelling a carry refuses with a
+  message and the Pokemon stays in hand, rather than creating an
+  over-capacity box.
 
 ## Version
 
