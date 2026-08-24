@@ -14,9 +14,15 @@ Bill's PC+ replaces the built-in PC box screen with a grid interface. Browse and
 rearrange your boxes freely — the game is only written when you actually move
 something, and it tells you when it does.
 
-| Box view | Deposit view |
-|---|---|
-| <img src="images/screen2.png?v=2" width="400" alt="Box view: the 5x4 grid with the selected Pokemon's sprite and stats"/> | <img src="images/screen1.png?v=2" width="400" alt="Deposit view: the party row under the box grid"/> |
+<p align="center">
+  <img src="images/screen2.png" width="480" alt="Box view: the 5x4 grid with the selected Pokemon's sprite and stats"/><br/>
+  <sub>Box view</sub>
+</p>
+
+<p align="center">
+  <img src="images/screen1.png" width="480" alt="Deposit view: the party row under the box grid"/><br/>
+  <sub>Deposit view</sub>
+</p>
 
 ## Features
 
