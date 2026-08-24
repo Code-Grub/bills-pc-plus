@@ -44,9 +44,13 @@ something, and it tells you when it does.
 
 ## Install
 
-Drop the [`bills_pc_plus`](bills_pc_plus) folder into the game's `mods/`
-directory. It claims the `BoxMenu` screen id, so it replaces the built-in PC
-box screen with no further configuration.
+**Mod manager:** grab the release zip from
+[Releases](../../releases) and import it — FIND MODS in the launcher, or drop
+the zip into the save directory's `imports/mods/` folder and rescan.
+
+**Manual:** unzip the release into the game's `mods/bills_pc_plus/` directory.
+It claims the `BoxMenu` screen id, so it replaces the built-in PC box screen
+with no further configuration.
 
 ## Controls
 
@@ -94,4 +98,4 @@ and depositing is `B` then pick.
 
 ## Version
 
-Current release: **0.8.0** — see [bills_pc_plus/CHANGELOG.md](bills_pc_plus/CHANGELOG.md).
+Current release: **0.8.0** — see [CHANGELOG.md](CHANGELOG.md).
