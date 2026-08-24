@@ -85,7 +85,7 @@ return function(mod)
 
   local function drawHeader(self)
     local n = self.session.save.currentBox
-    local countText = ("%d/%d"):format(self.session:count(), Boxes.CAPACITY)
+    local mons = self.session:count()
     if self.mode == "deposit" then
       -- Vertical arrows signal that up/down now page the destination box
       -- instead of the horizontal grid-cursor paging.  Drawn as a matched
@@ -95,19 +95,21 @@ return function(mod)
       -- shapes from the same hand read cleaner than one glyph and one
       -- hand-drawn cousin.  Same school as the cursor stubs and the shiny
       -- mark -- fills on whole pixels.
+      --
+      -- Arrows, the BOX label, the number and a full "n/20" cannot all fit
+      -- in the box window without crossing the divider, so deposit's count
+      -- drops the capacity: the box view states it, and a full box says so
+      -- itself when the deposit is refused.
       local label = ("BOX%d"):format(n)
-      Font.draw(label, Layout.HEADER_X, Layout.HEADER_Y)
-      -- the stacked pair marks the panel boundary: label and count sit
-      -- exactly where box view's do, and the arrows take the empty row
-      -- above the plate
-      local ax = 98
+      Font.draw(label, 16, Layout.HEADER_Y)
+      local ax = 10
       love.graphics.rectangle("fill", ax, 8, 1, 1)
       love.graphics.rectangle("fill", ax - 1, 9, 3, 1)
       love.graphics.rectangle("fill", ax - 2, 10, 5, 1)
       love.graphics.rectangle("fill", ax - 2, 13, 5, 1)
       love.graphics.rectangle("fill", ax - 1, 14, 3, 1)
       love.graphics.rectangle("fill", ax, 15, 1, 1)
-      Font.draw(countText, 48, Layout.HEADER_Y)
+      Font.draw(tostring(mons), 16 + #label * 8 + 8, Layout.HEADER_Y)
     else
       -- The count lives in the box window, right-aligned to the divider.
       -- The label gives up its space so the two never read as one number:
@@ -115,6 +117,7 @@ return function(mod)
       -- for the identity plate, and with it, every pixel of sprite
       -- headroom.
       Font.draw(("BOX%d"):format(n), Layout.HEADER_X, Layout.HEADER_Y)
+      local countText = ("%d/%d"):format(mons, Boxes.CAPACITY)
       Font.draw(countText, 88 - #countText * 8, Layout.HEADER_Y)
     end
   end
