@@ -1,0 +1,16 @@
+{
+  "id": "bills_pc_plus",
+  "name": "Bill's PC Plus",
+  "version": "0.8.0",
+  "api": 2,
+  "entry": "main.lua",
+  "profile": "content",
+  "category": "UI",
+  "game_version": ">=0.0.0-0 <2.0.0",
+  "priority": 100,
+  "permissions": ["engine_internals"],
+  "dependencies": [],
+  "optional_dependencies": [],
+  "conflicts": [],
+  "description": "Replaces the PC box screen with a grid interface: free box paging with no forced save, grab-and-place rearranging, and an inline art and stats panel."
+}

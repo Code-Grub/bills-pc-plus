@@ -1,0 +1,18 @@
+-- Sharing metadata; read by tooling and the manager detail pane.
+return {
+  summary = "Bill's PC as a grid, with free box paging and grab-and-place moves.",
+  author = "camwrightdc",
+  tags = { "ui", "quality-of-life", "storage" },
+  differences = {
+    changed = {
+      "the PC box screen is a grid instead of a menu stack",
+      "changing box no longer forces a save",
+    },
+    added = {
+      "pick up and drop to rearrange within and across boxes",
+      "front sprite and condensed stats shown beside the grid",
+    },
+    known = { "boxes stay packed, so mons cannot be left in scattered slots" },
+  },
+  compat = { engine = ">=1.0.0 <2.0.0", modApi = 2 },
+}
