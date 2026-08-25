@@ -808,13 +808,12 @@ Font.draw = function(text, x, ty)
   texts[#texts + 1] = { text = tostring(text), x = x, y = ty }
   return realDraw(text, x, ty)
 end
--- the shiny mark is a drawn diamond at the strip's left edge, not text:
--- three small fills around x=56..60, y=83..85 (the cursor's stubs live on
--- the grid, well above this row)
+-- the shiny mark is a drawn diamond beside the centred HP, not text:
+-- three small fills around x=146..150, y=83..85
 local marks = {}
 local realRect = gfx.rectangle
 gfx.rectangle = function(mode, x, y2, w, h)
-  if mode == "fill" and x >= 54 and x <= 62 and y2 >= 80 and y2 <= 90 then
+  if mode == "fill" and x >= 144 and x <= 152 and y2 >= 80 and y2 <= 90 then
     marks[#marks + 1] = { x = x, y = y2 }
   end
   return realRect(mode, x, y2, w, h)
@@ -830,7 +829,6 @@ local function drew(t)
   return nil
 end
 T.check(drew("NORMAL/FLYING") ~= nil, "both types print on one slash-joined line")
-T.check(drew("PAR") ~= nil, "the status condition prints")
 T.eq(#marks, 3, "a shiny DV spread draws the three-stroke diamond mark")
 
 -- the identity moved up to the panel: name over level above the sprite,
@@ -843,15 +841,15 @@ T.eq(nameDraw.y, 8, "the name sits at the panel plate's top row")
 T.eq(nameDraw.x, 96, "a long name holds its start at the panel's left edge")
 T.eq(drew(":L12") ~= nil, true, "the level sits under the name")
 
--- the strip's top row mirrors the columns above it: the box count under
--- the grid, the HP under the sprite
+-- the strip's top row centres each count in its window: the box count
+-- under the grid, the HP under the sprite
 local countDraw = drew("1/20")
 T.check(countDraw ~= nil, "the box count prints under the grid")
-T.eq(countDraw.x, 8, "the count sits under the grid's left edge")
+T.eq(countDraw.x, 32, "the count centres in the box window")
 T.eq(countDraw.y, 80, "the count rides the box window's bottom line")
 local hpDraw = drew("20/20")
 T.check(hpDraw ~= nil, "the focused mon's HP prints")
-T.eq(hpDraw.x, 96, "the HP sits under the sprite column")
+T.eq(hpDraw.x, 104, "the HP centres in the sprite window")
 T.eq(hpDraw.y, 80, "the HP rides the box window's bottom line")
 
 stripGrid.counter = 130
@@ -864,7 +862,7 @@ stripGrid:draw()
 Font.draw = realDraw
 T.eq(drew("FIXMON A").x, 88, "the marquee slides the name left to reveal its tail")
 
--- a plain mon draws the type line but neither mark
+-- a plain mon draws the type line but no mark
 stripGrid.session.sparse[1][1] = monOfSpecies("FIXMON_A", 5)
 stripGrid.counter = 0
 texts = {}
@@ -874,7 +872,7 @@ Font.draw = function(text, x, ty)
   return realDraw(text, x, ty)
 end
 gfx.rectangle = function(mode, x, y2, w, h)
-  if mode == "fill" and x >= 54 and x <= 62 and y2 >= 78 and y2 <= 90 then
+  if mode == "fill" and x >= 144 and x <= 152 and y2 >= 80 and y2 <= 90 then
     marks[#marks + 1] = { x = x, y = y2 }
   end
   return realRect(mode, x, y2, w, h)
@@ -884,7 +882,6 @@ Font.draw = realDraw
 gfx.rectangle = realRect
 T.check(drew("NORMAL/FLYING") ~= nil, "types still print for a plain mon")
 T.eq(#marks, 0, "no shiny mark without the DV spread")
-T.check(drew("PAR") == nil, "no status without a condition")
 
 -- and in deposit mode the type line stays hidden under box C
 stripGame.save.party = { monOfSpecies("FIXMON_A", 5) }

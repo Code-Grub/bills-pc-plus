@@ -266,32 +266,26 @@ return function(mod)
     local mon = self:focused()
     local row = Layout.ROW
     -- The bottom line of the box window mirrors the columns above it: the
-    -- box count under the grid, the focused mon's HP under its sprite.
-    -- Between them, the shiny mark and status code describe the same mon
-    -- as the HP beside them.
-    Font.draw(("%d/%d"):format(self.session:count(), Boxes.CAPACITY),
-              Layout.STATS_X, Layout.COUNT_Y)
+    -- box count centred under the grid, the focused mon's HP centred under
+    -- its sprite, the shiny mark beside it.
+    local countText = ("%d/%d"):format(self.session:count(), Boxes.CAPACITY)
+    Font.draw(countText, 48 - #countText * 4, Layout.COUNT_Y)
     if not mon then return end
-    -- The shiny mark and status condition are storage facts the vanilla PC
-    -- never showed -- a mon keeps its status through storage, and a shiny
-    -- is invisible until you already know its DVs.  The mark is a drawn
-    -- diamond rather than a text glyph: the font carries no star, and a
-    -- filled shape reads as a sparkle at this resolution the way the
-    -- cursor's filled stubs do.  "OK" is the no-condition value, not worth
-    -- ink.
+    -- The shiny mark is a storage fact the vanilla PC never showed -- a
+    -- shiny is invisible until you already know its DVs.  The mark is a
+    -- drawn diamond rather than a text glyph: the font carries no star,
+    -- and a filled shape reads as a sparkle at this resolution the way the
+    -- cursor's filled stubs do.
     if Stats.isShiny(mon.dvs) then
-      local mx, my = 56, Layout.COUNT_Y + 3
+      local mx, my = 146, Layout.COUNT_Y + 3
       love.graphics.rectangle("fill", mx + 2, my, 1, 1)
       love.graphics.rectangle("fill", mx, my + 1, 3, 1)
       love.graphics.rectangle("fill", mx + 2, my + 2, 1, 1)
     end
-    if mon.status and mon.status ~= "OK" then
-      Font.draw(mon.status, 64, Layout.COUNT_Y)
-    end
     local stats = mon.stats
     if stats then
-      Font.draw(("%d/%d"):format(mon.hp or 0, stats.hp or 0),
-                Layout.PANEL_X, Layout.COUNT_Y)
+      local hpText = ("%d/%d"):format(mon.hp or 0, stats.hp or 0)
+      Font.draw(hpText, 124 - #hpText * 4, Layout.COUNT_Y)
       Font.draw(("ATK %3d"):format(stats.attack or 0),
                 Layout.STATS_X, Layout.STATS_Y)
       Font.draw(("DEF %3d"):format(stats.defense or 0),
