@@ -101,4 +101,4 @@ and depositing is `B` then pick.
 
 ## Version
 
-Current release: **0.8.0** — see [CHANGELOG.md](CHANGELOG.md).
+Newest release: [releases/latest](https://github.com/Code-Grub/bills-pc-plus/releases/latest) — full history in [CHANGELOG.md](CHANGELOG.md).
