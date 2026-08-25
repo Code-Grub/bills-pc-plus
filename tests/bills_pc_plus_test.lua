@@ -808,12 +808,14 @@ Font.draw = function(text, x, ty)
   texts[#texts + 1] = { text = tostring(text), x = x, y = ty }
   return realDraw(text, x, ty)
 end
--- the shiny mark is a drawn diamond beside the centred HP, not text:
--- three small fills around x=146..150, y=83..85
+-- the shiny mark is a drawn diamond beside the level on the plate, not
+-- text: three small fills around x=146..148, y=19..21.  It sits there
+-- rather than on the HP line because a three-digit "100/100" is the
+-- panel's full 56px and leaves the line no room for it.
 local marks = {}
 local realRect = gfx.rectangle
 gfx.rectangle = function(mode, x, y2, w, h)
-  if mode == "fill" and x >= 144 and x <= 152 and y2 >= 80 and y2 <= 90 then
+  if mode == "fill" and x >= 144 and x <= 152 and y2 >= 16 and y2 <= 28 then
     marks[#marks + 1] = { x = x, y = y2 }
   end
   return realRect(mode, x, y2, w, h)
@@ -873,7 +875,7 @@ Font.draw = function(text, x, ty)
   return realDraw(text, x, ty)
 end
 gfx.rectangle = function(mode, x, y2, w, h)
-  if mode == "fill" and x >= 144 and x <= 152 and y2 >= 80 and y2 <= 90 then
+  if mode == "fill" and x >= 144 and x <= 152 and y2 >= 16 and y2 <= 28 then
     marks[#marks + 1] = { x = x, y = y2 }
   end
   return realRect(mode, x, y2, w, h)
@@ -883,6 +885,67 @@ Font.draw = realDraw
 gfx.rectangle = realRect
 T.check(drew("NORMAL/FLYING") ~= nil, "types still print for a plain mon")
 T.eq(#marks, 0, "no shiny mark without the DV spread")
+
+-- ------- the identity plate measures glyphs, not bytes
+-- Font.width exists because a charmap entry can be one glyph in several
+-- UTF-8 bytes, and its own comment warns off `#text * 8`
+-- (src/render/Font.lua:373-375).  A nickname typed from NamingScreen's
+-- symbol row is the ordinary way such a name reaches the plate:
+-- "PIKA♂♀" is 6 glyphs -- 48px, inside the 56px panel -- so it centres
+-- like any short name.  Counted in bytes it "is" 80px and marquees
+-- instead, pinned to the panel's left edge with its tail scrolling.
+local glyphMon = monOfSpecies("FIXMON_A", 12)
+glyphMon.nickname = "PIKA♂♀"
+stripGrid.session.sparse[1][1] = glyphMon
+stripGrid.counter = 0
+texts = {}
+Font.draw = function(text, x, ty)
+  texts[#texts + 1] = { text = tostring(text), x = x, y = ty }
+  return realDraw(text, x, ty)
+end
+stripGrid:draw()
+Font.draw = realDraw
+local glyphDraw = drew("PIKA♂♀")
+T.check(glyphDraw ~= nil, "the nickname draws on the plate")
+T.eq(glyphDraw.x, 100, "a name that fits by glyphs centres instead of marqueeing")
+
+-- ------- the shiny mark never lands on the HP text
+-- The HP centres on SPRITE_CX, so its width eats outwards from the middle
+-- of the panel: "100/100" is 7 glyphs, the panel's full 56px, and reaches
+-- x=152 -- straight through the mark at 146..148.  Three-digit HP is the
+-- ordinary mid-game case, so a shiny wears the mark stamped through its
+-- last digit.
+local shinyMon = monOfSpecies("FIXMON_A", 12)
+shinyMon.dvs = { attack = 15, defense = 10, speed = 10, special = 10 }
+shinyMon.hp = 100
+shinyMon.stats = { hp = 100, attack = 12, defense = 12, speed = 12, special = 12 }
+stripGrid.session.sparse[1][1] = shinyMon
+stripGrid.counter = 0
+texts = {}
+marks = {}
+local hpLineMarks = {}
+Font.draw = function(text, x, ty)
+  texts[#texts + 1] = { text = tostring(text), x = x, y = ty }
+  return realDraw(text, x, ty)
+end
+gfx.rectangle = function(mode, x, y2, w, h)
+  if mode == "fill" and x >= 144 and x <= 152 then
+    if y2 >= 16 and y2 <= 28 then
+      marks[#marks + 1] = { x = x, y = y2 }
+    elseif y2 >= 80 and y2 <= 90 then
+      hpLineMarks[#hpLineMarks + 1] = { x = x, y = y2 }
+    end
+  end
+  return realRect(mode, x, y2, w, h)
+end
+stripGrid:draw()
+Font.draw = realDraw
+gfx.rectangle = realRect
+local wideHp = drew("100/100")
+T.check(wideHp ~= nil, "three-digit HP prints")
+T.eq(wideHp.x, 96, "a full-width HP still centres under the sprite")
+T.eq(#marks, 3, "the shiny mark draws on the plate, clear of the HP")
+T.eq(#hpLineMarks, 0, "nothing is stamped over the HP line")
 
 -- and in deposit mode the type line stays hidden under box C
 stripGame.save.party = { monOfSpecies("FIXMON_A", 5) }

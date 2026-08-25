@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.9.3
+
+- A nickname carrying a gender symbol no longer scrolls out of its own
+  panel. The identity plate measured names in UTF-8 bytes, so a glyph
+  written in three bytes counted as three: `PIKA` plus the two gender
+  marks measured 80px against a 56px panel, and a name that fits marqueed
+  anyway -- pinned to the panel's left edge with its tail sliding. Names
+  measure glyph advances now, which is what `Font.width` is for.
+- The shiny mark moved off the HP line, up to the plate beside the level.
+  HP centres under the sprite and a three-digit `100/100` is 56px -- the
+  panel's whole width -- so the mark had been landing on top of its last
+  digit for any shiny past three-figure HP.
+
+## 0.9.2
+
+- Front sprites are cached rather than reloaded from disk on every focus
+  change, and sprite placement moved behind `Layout.spritePos` so every
+  view positions art the same way. Layout gained validation.
+- The README's demo GIFs loop instead of stopping on their last frame.
+- Dev assets are kept out of the release archive, and the release itself
+  is cut by a workflow rather than by hand.
+
 ## 0.9.1
 
 - Box view's stats window gains a DV spread line under the types: the

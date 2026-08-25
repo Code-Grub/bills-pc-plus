@@ -228,7 +228,11 @@ return function(mod)
     local MARQUEE_EVERY = 5
     local nameText = self.session:nameOf(mon)
     local levelText = (":L%d"):format(mon.level or 1)
-    local nameW, levelW = #nameText * 8, #levelText * 8
+    -- Glyph advances, not byte length: a charmap entry like the gender
+    -- symbols is one glyph in several UTF-8 bytes, so #text * 8 overstates
+    -- any name carrying one and marquees a name that fits
+    -- (src/render/Font.lua:373-375).
+    local nameW, levelW = Font.width(nameText), Font.width(levelText)
     local plateW = math.min(Layout.PANEL_W, math.max(nameW, levelW) + 4)
     local nameX
     if nameW > Layout.PANEL_W then
@@ -270,7 +274,8 @@ return function(mod)
     local row = Layout.ROW
     -- The bottom line of the box window mirrors the columns above it: the
     -- box count centred under the grid, the focused mon's HP centred under
-    -- its sprite, the shiny mark beside it.
+    -- its sprite.  The line carries nothing else -- the shiny mark sits up
+    -- on the plate, where there is room for it.
     local countText = ("%d/%d"):format(self.session:count(), Boxes.CAPACITY)
     Font.draw(countText, 48 - #countText * 4, Layout.COUNT_Y)
     if not mon then return end
@@ -279,8 +284,14 @@ return function(mod)
     -- drawn diamond rather than a text glyph: the font carries no star,
     -- and a filled shape reads as a sparkle at this resolution the way the
     -- cursor's filled stubs do.
+    -- It rides the plate's level row rather than the HP line beside it: HP
+    -- centres on SPRITE_CX and a three-digit "100/100" is 56px, the panel's
+    -- whole width, so the line has no room to give.  The level never grows
+    -- past ":L100" -- 40px centred, ending at 144 -- so 146 is always
+    -- clear.  drawStats runs after drawPanel (Screen:draw), so this lands
+    -- on top of the plate rather than under its white fill.
     if Stats.isShiny(mon.dvs) then
-      local mx, my = 146, Layout.COUNT_Y + 3
+      local mx, my = 146, Layout.PLATE_Y + Layout.ROW + 3
       love.graphics.rectangle("fill", mx + 2, my, 1, 1)
       love.graphics.rectangle("fill", mx, my + 1, 3, 1)
       love.graphics.rectangle("fill", mx + 2, my + 2, 1, 1)
