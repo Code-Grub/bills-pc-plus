@@ -219,7 +219,7 @@ end
 dep:draw()
 love.graphics.rectangle = arrowRect
 T.eq(#arrowFills, 6, "the header stacks up and down triangles beside the box number")
-T.eq(arrowFills[1].x, 10, "the up arrow's apex leads its base")
+T.eq(arrowFills[1].x, 9, "the up arrow's apex leads its base")
 T.check(arrowFills[4].y > arrowFills[1].y + 2,
   "the down arrow stacks under the up arrow, with air between")
 
@@ -808,13 +808,13 @@ Font.draw = function(text, x, ty)
   texts[#texts + 1] = { text = tostring(text), x = x, y = ty }
   return realDraw(text, x, ty)
 end
--- the shiny mark is a drawn diamond on the strip's top row, not text:
--- three small fills around x=56..60, y=91..93 (the cursor's stubs live on
+-- the shiny mark is a drawn diamond at the strip's left edge, not text:
+-- three small fills around x=8..12, y=91..93 (the cursor's stubs live on
 -- the grid, well above this row)
 local marks = {}
 local realRect = gfx.rectangle
 gfx.rectangle = function(mode, x, y2, w, h)
-  if mode == "fill" and x >= 54 and x <= 62 and y2 >= 88 and y2 <= 96 then
+  if mode == "fill" and x >= 6 and x <= 14 and y2 >= 88 and y2 <= 96 then
     marks[#marks + 1] = { x = x, y = y2 }
   end
   return realRect(mode, x, y2, w, h)
@@ -843,11 +843,12 @@ T.eq(nameDraw.y, 8, "the name sits at the panel plate's top row")
 T.eq(nameDraw.x, 96, "a long name holds its start at the panel's left edge")
 T.eq(drew(":L12") ~= nil, true, "the level sits under the name")
 
--- the strip's top row mirrors the columns above it: the box count under
--- the grid, the HP under the sprite
+-- the strip's top row carries the marks at its left edge and the HP at
+-- its right, under the sprite
 local countDraw = drew("1/20")
-T.check(countDraw ~= nil, "the box count prints under the grid")
-T.eq(countDraw.x, 8, "the count sits at the strip's left edge")
+T.check(countDraw ~= nil, "the box count prints in the header")
+T.eq(countDraw.x, 56, "the count right-aligns to the divider")
+T.eq(countDraw.y, 8, "the count rides the header row, above the grid")
 local hpDraw = drew("20/20")
 T.check(hpDraw ~= nil, "the focused mon's HP prints")
 T.eq(hpDraw.x, 96, "the HP sits under the sprite column")
