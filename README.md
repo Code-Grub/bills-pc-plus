@@ -15,12 +15,12 @@ rearrange your boxes freely — the game is only written when you actually move
 something, and it tells you when it does.
 
 <p align="center">
-  <img src="images/demo_box.gif?v=2" width="480" alt="Box view: the 5x4 grid with gaps, the selected Pokemon's sprite and stats — cursor blinks, MOVE and page"/><br/>
+  <img src="images/demo_box_v3.gif" width="480" alt="Box view: the 5x4 grid with gaps, the selected Pokemon's sprite and stats — cursor blinks, MOVE and page"/><br/>
   <sub>Box view — free paging, grab-and-place with gaps</sub>
 </p>
 
 <p align="center">
-  <img src="images/demo_deposit.gif?v=2" width="480" alt="Deposit view: the party row under the box grid — party cursor and destination paging"/><br/>
+  <img src="images/demo_deposit_v3.gif" width="480" alt="Deposit view: the party row under the box grid — party cursor and destination paging"/><br/>
   <sub>Deposit view — party row and destination paging</sub>
 </p>
 
