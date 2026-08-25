@@ -85,28 +85,24 @@ return function(mod)
 
   local function drawHeader(self)
     local n = self.session.save.currentBox
-    -- The count lives in the box window's bottom line now (see drawStats),
-    -- so the header carries only the label.  Deposit's arrows shrink to
-    -- 3px to make room beside it.
+    -- The title centres in the box window; deposit's paging arrows stack
+    -- to the right of the number -- a matched pair of little filled
+    -- triangles in the header row's own height, up on top, two pixels of
+    -- air, down -- rather than font glyphs: the font has a down marker but
+    -- no up companion, and two shapes from the same hand read cleaner than
+    -- one glyph and one hand-drawn cousin.  Same school as the cursor
+    -- stubs and the shiny mark -- fills on whole pixels.
+    local label = ("BOX%d"):format(n)
+    local labelX = 48 - #label * 4
+    Font.draw(label, labelX, Layout.HEADER_Y)
     if self.mode == "deposit" then
-      -- Vertical arrows signal that up/down now page the destination box
-      -- instead of the horizontal grid-cursor paging.  Drawn as a matched
-      -- pair of little filled triangles stacked in the header row's own
-      -- height -- up on top, two pixels of air, down -- rather than font
-      -- glyphs: the font has a down marker but no up companion, and two
-      -- shapes from the same hand read cleaner than one glyph and one
-      -- hand-drawn cousin.  Same school as the cursor stubs and the shiny
-      -- mark -- fills on whole pixels.
-      Font.draw(("BOX%d"):format(n), 12, Layout.HEADER_Y)
-      local ax = 9
-      love.graphics.rectangle("fill", ax, 8, 1, 1)
-      love.graphics.rectangle("fill", ax - 1, 9, 3, 1)
-      love.graphics.rectangle("fill", ax - 2, 10, 3, 1)
-      love.graphics.rectangle("fill", ax - 2, 13, 3, 1)
-      love.graphics.rectangle("fill", ax - 1, 14, 3, 1)
-      love.graphics.rectangle("fill", ax, 15, 1, 1)
-    else
-      Font.draw(("BOX%d"):format(n), Layout.HEADER_X, Layout.HEADER_Y)
+      local ax = labelX + #label * 8 + 4
+      love.graphics.rectangle("fill", ax + 2, 8, 1, 1)
+      love.graphics.rectangle("fill", ax + 1, 9, 3, 1)
+      love.graphics.rectangle("fill", ax, 10, 5, 1)
+      love.graphics.rectangle("fill", ax, 13, 5, 1)
+      love.graphics.rectangle("fill", ax + 1, 14, 3, 1)
+      love.graphics.rectangle("fill", ax + 2, 15, 1, 1)
     end
   end
 
