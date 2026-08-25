@@ -24,7 +24,8 @@ x, y = L.slotXY(20)
 T.eq(x, L.GRID_X + 4 * L.CELL, "slot 20 is the last column")
 T.eq(y, L.GRID_Y + 3 * L.CELL, "slot 20 is the last row")
 local aFloor = (L.BOX_A_TILES[2] + L.BOX_A_TILES[4] - 1) * 8
-T.eq(y + L.CELL, aFloor, "the grid ends exactly at box A's interior floor")
+T.eq(y + L.CELL, L.COUNT_Y, "the grid ends exactly at the count line")
+T.eq(L.COUNT_Y + L.ROW, aFloor, "the count line ends at box A's interior floor")
 
 -- slotAt is the inverse of slotXY's cell arithmetic
 T.eq(L.slotAt(0, 0), 1, "col 0 row 0 is slot 1")
@@ -48,7 +49,7 @@ px = L.partyXY(6)
 T.eq(px, L.PARTY_X + 5 * L.CELL, "six party cells span 96px from the left edge")
 
 -- the whole composition adds up to the Game Boy screen
-T.eq(L.STATS_Y + 4 * L.ROW, L.PARTY_Y, "four stat rows end where the party row begins")
+T.eq(L.STATS_Y + 3 * L.ROW, L.PARTY_Y, "three stat rows end where the party row begins")
 T.check(L.PARTY_Y + L.CELL <= 144, "the composition fits the 144px canvas")
 
 -- sprite centring: SPRITE_CX is the panel centre, so consumers can subtract
@@ -74,28 +75,28 @@ T.eq(left_margin, right_margin, "40px sprite has equal margins in panel (visuall
 -- ------- framed layout: two stacked boxes sharing a border row
 -- Font.drawBox(tx, ty, tw, th) takes TILE coords, fills the area white and
 -- draws a 1-tile border, so every framed region loses 8px on each side.
--- Box A = drawBox(0, 0, 20, 11): interior px x=8..152, y=8..80
--- Box B = drawBox(0, 10, 20, 8): interior px x=8..152, y=88..136
+-- Box A = drawBox(0, 0, 20, 12): interior px x=8..152, y=8..88
+-- Box B = drawBox(0, 11, 20, 7): interior px x=8..152, y=96..136
 local IN_L, IN_R = 8, 152
-local A_TOP, A_BOT = 8, 80
-local B_TOP, B_BOT = 88, 136
+local A_TOP, A_BOT = 8, 88
+local B_TOP, B_BOT = 96, 136
 
 T.eq(L.BOX_A_TILES ~= nil, true, "Layout names box A's tile rect")
-T.eq(table.concat(L.BOX_A_TILES, ","), "0,0,20,11", "box A frames header, grid and panel")
-T.eq(table.concat(L.BOX_B_TILES, ","), "0,10,20,8", "box B frames stats and the party row")
+T.eq(table.concat(L.BOX_A_TILES, ","), "0,0,20,12", "box A frames header, grid, count line and panel")
+T.eq(table.concat(L.BOX_B_TILES, ","), "0,11,20,7", "box B frames stats and the party row")
 
 -- everything lives inside the frames
 T.eq(L.GRID_X, IN_L, "the grid starts one tile in from the left edge")
 local lastX = select(1, L.slotXY(L.COLS))
 T.eq(lastX + L.CELL, IN_L + 80, "five 16px cells end 80px after the grid's left edge")
-T.eq(select(2, L.slotXY(L.COLS * L.ROWS)) + L.CELL, A_BOT,
-  "the grid's last row ends exactly at box A's interior bottom")
+T.eq(select(2, L.slotXY(L.COLS * L.ROWS)) + L.CELL, L.COUNT_Y,
+  "the grid's last row ends exactly at the count line")
 
 T.eq(L.PANEL_X, IN_L + 80 + 8, "the sprite panel starts after the grid and the divider")
 T.eq(L.PANEL_W, 56, "the panel is 56px after the frame and the divider take their tiles")
 T.eq(L.PANEL_X + L.PANEL_W, IN_R, "the panel ends at box A's interior right edge")
 T.eq(L.SPRITE_CX, L.PANEL_X + L.PANEL_W / 2, "SPRITE_CX is still the panel's centre")
-T.eq(A_BOT - L.SPRITE_BASELINE, 0, "sprites stand on box A's interior floor, clearing headroom for the plate")
+T.eq(L.SPRITE_BASELINE, L.COUNT_Y, "sprites stand on the count line, clearing it for the HP below")
 
 -- a 56px sprite, the widest in Gen 1, fills the panel exactly
 local left56 = L.SPRITE_CX - math.floor(56 / 2)
@@ -106,7 +107,7 @@ T.check(left56 + 56 <= IN_R, "a 56px sprite stays inside the frame")
 -- stats sit at a fixed place in both modes; the party row goes below them
 T.eq(L.STATS_X, IN_L, "stats start one tile in")
 T.eq(L.STATS_Y, B_TOP, "stats start at box B's interior top")
-T.eq(L.STATS_Y + 4 * L.ROW, 120, "four stat rows end at y=120")
+T.eq(L.STATS_Y + 3 * L.ROW, 120, "three stat rows end at y=120")
 T.eq(L.PARTY_X, IN_L, "the party row starts one tile in")
 T.eq(L.PARTY_Y, 120, "the party row sits below the stats, not above")
 T.eq(L.PARTY_Y + L.CELL, B_BOT, "the party row ends at box B's interior bottom")
@@ -132,10 +133,10 @@ T.eq(L.PLATE_Y, 8, "the plate takes the panel's header row in both modes")
 T.eq(L.SPRITE_BASELINE - 56, L.PLATE_Y + 16,
   "a 56px sprite's top clears the plate exactly")
 
--- the strip runs HP, ATK/DEF, SPD/SPC; box C covers the type line, so
--- deposit mode shows the three stat rows and box view gets types as its
+-- the strip runs ATK/DEF, SPD/SPC; box C covers the type line, so
+-- deposit mode shows the two stat rows and box view gets types as its
 -- bonus row
-T.eq(L.STATS_Y + 3 * L.ROW, cy * 8,
+T.eq(L.STATS_Y + 2 * L.ROW, cy * 8,
   "the last deposit-visible stat row ends where box C's border starts")
 
 -- ------- the divider between the grid and the sprite panel
@@ -144,7 +145,7 @@ T.eq(L.STATS_Y + 3 * L.ROW, cy * 8,
 T.eq(L.DIVIDER_X, L.GRID_X + 5 * L.CELL, "the divider sits where the grid ends")
 T.eq(L.DIVIDER_X, 88, "the divider column starts at x=88")
 T.eq(L.DIVIDER_TOP, 8, "the divider spans the full interior, from box A's top")
-T.eq(L.DIVIDER_ROWS, 9, "nine 8px glyphs span the interior's 72px height")
+T.eq(L.DIVIDER_ROWS, 10, "ten 8px glyphs span the interior's 80px height")
 T.eq(L.DIVIDER_TOP + L.DIVIDER_ROWS * L.ROW, A_BOT,
   "the divider ends flush with box A's interior floor")
 
@@ -168,8 +169,10 @@ T.eq(left40 - L.PANEL_X, 152 - (left40 + 40), "a smaller sprite stays centred")
 -- on the interior floor: every pixel of headroom goes to the sprite, and
 -- the tallest sprites keep their heads out from under the plate as far as
 -- the box allows.
-T.eq(L.SPRITE_BASELINE, 80, "the sprite baseline is the interior floor")
-T.eq(A_BOT - L.SPRITE_BASELINE, 0, "no float -- the floor is the baseline")
+-- on the count line: every pixel of headroom goes to the sprite, and the
+-- HP row fits in the new line between sprite and floor
+T.eq(L.SPRITE_BASELINE, L.COUNT_Y, "the sprite stands on the count line")
+T.eq(A_BOT - L.SPRITE_BASELINE, L.ROW, "the HP row fills the line below it")
 
 -- a 56px sprite's top reaches y=24, under the plate's bottom edge (32) --
 -- the plate bites 8px of the tallest sprites, 4px of 52px ones, and

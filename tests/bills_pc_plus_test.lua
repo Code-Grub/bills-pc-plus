@@ -395,9 +395,9 @@ end
 
 T.check(#fills >= 2, "draw() paints both frame fills")
 T.eq(("%d,%d,%d,%d"):format(fills[1].c.x, fills[1].c.y, fills[1].c.w, fills[1].c.h),
-  "0,0,160,88", "box A covers the top of the screen")
+  "0,0,160,96", "box A covers the top of the screen")
 T.eq(("%d,%d,%d,%d"):format(fills[2].c.x, fills[2].c.y, fills[2].c.w, fills[2].c.h),
-  "0,80,160,64", "box B covers the bottom, sharing box A's border row")
+  "0,88,160,56", "box B covers the bottom, sharing box A's border row")
 T.check(firstText ~= nil, "the header is drawn, so this test is not vacuous")
 T.check(fills[2].i < firstText,
   "both frames are filled before the first text is drawn over them")
@@ -809,12 +809,12 @@ Font.draw = function(text, x, ty)
   return realDraw(text, x, ty)
 end
 -- the shiny mark is a drawn diamond at the strip's left edge, not text:
--- three small fills around x=8..12, y=91..93 (the cursor's stubs live on
+-- three small fills around x=56..60, y=83..85 (the cursor's stubs live on
 -- the grid, well above this row)
 local marks = {}
 local realRect = gfx.rectangle
 gfx.rectangle = function(mode, x, y2, w, h)
-  if mode == "fill" and x >= 6 and x <= 14 and y2 >= 88 and y2 <= 96 then
+  if mode == "fill" and x >= 54 and x <= 62 and y2 >= 80 and y2 <= 90 then
     marks[#marks + 1] = { x = x, y = y2 }
   end
   return realRect(mode, x, y2, w, h)
@@ -843,15 +843,16 @@ T.eq(nameDraw.y, 8, "the name sits at the panel plate's top row")
 T.eq(nameDraw.x, 96, "a long name holds its start at the panel's left edge")
 T.eq(drew(":L12") ~= nil, true, "the level sits under the name")
 
--- the strip's top row carries the marks at its left edge and the HP at
--- its right, under the sprite
+-- the strip's top row mirrors the columns above it: the box count under
+-- the grid, the HP under the sprite
 local countDraw = drew("1/20")
-T.check(countDraw ~= nil, "the box count prints in the header")
-T.eq(countDraw.x, 56, "the count right-aligns to the divider")
-T.eq(countDraw.y, 8, "the count rides the header row, above the grid")
+T.check(countDraw ~= nil, "the box count prints under the grid")
+T.eq(countDraw.x, 8, "the count sits under the grid's left edge")
+T.eq(countDraw.y, 80, "the count rides the box window's bottom line")
 local hpDraw = drew("20/20")
 T.check(hpDraw ~= nil, "the focused mon's HP prints")
 T.eq(hpDraw.x, 96, "the HP sits under the sprite column")
+T.eq(hpDraw.y, 80, "the HP rides the box window's bottom line")
 
 stripGrid.counter = 130
 texts = {}
@@ -873,7 +874,7 @@ Font.draw = function(text, x, ty)
   return realDraw(text, x, ty)
 end
 gfx.rectangle = function(mode, x, y2, w, h)
-  if mode == "fill" and x >= 54 and x <= 62 and y2 >= 88 and y2 <= 96 then
+  if mode == "fill" and x >= 54 and x <= 62 and y2 >= 78 and y2 <= 90 then
     marks[#marks + 1] = { x = x, y = y2 }
   end
   return realRect(mode, x, y2, w, h)

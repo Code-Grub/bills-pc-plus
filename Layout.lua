@@ -7,12 +7,12 @@
 -- takes TILE coords, fills its area white and draws a 1-tile border, so a
 -- framed region loses 8px on every side:
 --
---   Box A = (0, 0, 20, 11)  interior px x=8..152, y=8..80
---           header, the grid, and the sprite panel
---   Box B = (0, 10, 20, 8)  interior px x=8..152, y=88..136
+--   Box A = (0, 0, 20, 12)  interior px x=8..152, y=8..88
+--           header, the grid, the count line, and the sprite panel
+--   Box B = (0, 11, 20, 7)  interior px x=8..152, y=96..136
 --           the stats strip, and the party row in deposit mode
 --
--- Row 10 is both A's bottom border and B's top, drawn once as a shared
+-- Row 11 is both A's bottom border and B's top, drawn once as a shared
 -- line.  Box B must therefore be drawn AFTER box A and BEFORE any content,
 -- since drawBox's white fill erases whatever it covers.
 
@@ -25,8 +25,8 @@ Layout.CURSOR_ARM = 5
 Layout.ROW = 8
 
 -- tile rects for the two frames, as drawBox takes them
-Layout.BOX_A_TILES = { 0, 0, 20, 11 }
-Layout.BOX_B_TILES = { 0, 10, 20, 8 }
+Layout.BOX_A_TILES = { 0, 0, 20, 12 }
+Layout.BOX_B_TILES = { 0, 11, 20, 7 }
 -- Box C frames the party row in deposit mode only, drawn OVER the lower
 -- part of box B -- which box mode leaves empty anyway, so the frame costs
 -- nothing there.  Its interior lands exactly on PARTY_Y, which is why no
@@ -43,11 +43,11 @@ Layout.COLS, Layout.ROWS = 5, 4
 -- A column of Font.BORDER.v glyphs separating the grid from the sprite
 -- panel, drawn in the same chrome as the frames around it.  Box A's
 -- interior is 144px wide and the grid takes 80, so the divider's tile comes
--- out of the panel.  It spans the full interior height; the header row's
--- count yields to it, never the other way round.
+-- out of the panel.  It spans the full interior height, down through the
+-- count line.
 Layout.DIVIDER_X = 88
 Layout.DIVIDER_TOP = 8
-Layout.DIVIDER_ROWS = 9   -- 9 x 8px spans the interior's 72px height
+Layout.DIVIDER_ROWS = 10  -- 10 x 8px spans the interior's 80px height
 
 -- 56 wide, after the outer frame took it from 80 to 64 and the divider took
 -- another tile.  56 is exactly a 7x7 sprite, the largest in Gen 1, so those
@@ -74,7 +74,13 @@ Layout.SPRITE_BASELINE = 80
 Layout.PARTY_X, Layout.PARTY_Y = 8, 120
 Layout.PARTY_SLOTS = 6
 
-Layout.STATS_X, Layout.STATS_Y = 8, 88
+-- The box window's bottom line, inside box A under the grid: the count on
+-- the left, the focused mon's HP on the right (under the sprite).
+Layout.COUNT_Y = 80
+
+-- The stats strip inside box B: ATK/DEF, then SPD/SPC, then the type line
+-- (box view only -- deposit's party frame covers it).
+Layout.STATS_X, Layout.STATS_Y = 8, 96
 
 function Layout.slotXY(index)
   local i = index - 1
