@@ -93,7 +93,21 @@ function Invoke-Demo([string]$driver, [string]$out) {
   $ep.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter([System.Drawing.Imaging.Encoder]::SaveFlag,[long][System.Drawing.Imaging.EncoderValue]::Flush)
   $first.SaveAdd($ep); $first.Dispose()
   Remove-Item $tmp -Recurse -Force
-  Write-Host "GIF -> $out ($($paths.Count) frames) - file:///$($out -replace '\\','/')"
+  # Ensure infinite loop (NETSCAPE 2.0) - PropertyItem 0x5110 alone does not emit it
+  $bytes = [IO.File]::ReadAllBytes($out)
+  if (-not [Text.Encoding]::ASCII.GetString($bytes).Contains('NETSCAPE')) {
+    $packed = $bytes[10]
+    $gctSize = 0
+    if (($packed -band 0x80) -ne 0) { $gctSize = 3 * [Math]::Pow(2, ($packed -band 0x07)+1) }
+    $insertPos = 6+7+$gctSize
+    $loopExt = [byte[]]@(0x21,0xFF,0x0B,0x4E,0x45,0x54,0x53,0x43,0x41,0x50,0x45,0x32,0x2E,0x30,0x03,0x01,0x00,0x00,0x00)
+    $new = [byte[]]::new($bytes.Length+$loopExt.Length)
+    [Array]::Copy($bytes,0,$new,0,$insertPos)
+    [Array]::Copy($loopExt,0,$new,$insertPos,$loopExt.Length)
+    [Array]::Copy($bytes,$insertPos,$new,$insertPos+$loopExt.Length,$bytes.Length-$insertPos)
+    [IO.File]::WriteAllBytes($out,$new)
+  }
+  Write-Host "GIF -> $out ($($paths.Count) frames, loop infinite) - file:///$($out -replace '\\','/')"
 }
 
 Invoke-Demo "$PSScriptRoot\record_box.lua" "$OutDir\demo_box.gif"
