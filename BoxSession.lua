@@ -84,8 +84,10 @@ function BoxSession:unpackBox(b)
   if layout then
     for _, cell in ipairs(layout) do
       if k > #packed then break end
-      s[cell] = packed[k]
-      k = k + 1
+      if type(cell) == "number" and cell >= 1 and cell <= Boxes.CAPACITY and cell == math.floor(cell) and not s[cell] then
+        s[cell] = packed[k]
+        k = k + 1
+      end
     end
   end
   for i = 1, Boxes.CAPACITY do

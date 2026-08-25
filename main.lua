@@ -190,16 +190,23 @@ return function(mod)
     local path, trueColor = Sprites.path(self.game.data, mon.species, "front",
       { mon = mon, kind = "summary" })
     if path then
-      if self.spritePath ~= path then
+      self._spriteCache = self._spriteCache or {}
+      local cached = self._spriteCache[path]
+      if cached ~= nil then
+        self.sprite = cached.img
+        self.spriteTrueColor = cached.trueColor
+        self.spritePath = path
+      elseif self.spritePath ~= path then
         local ok, img = pcall(love.graphics.newImage, path)
-        self.sprite = ok and img or nil
-        self.spriteTrueColor = self.sprite and trueColor or false
+        self._spriteCache[path] = { img = ok and img or nil, trueColor = ok and img and trueColor or false }
+        cached = self._spriteCache[path]
+        self.sprite = cached.img
+        self.spriteTrueColor = cached.trueColor
         self.spritePath = path
       end
       if self.sprite then
         local pw, ph = self.sprite:getDimensions()
-        local px = Layout.SPRITE_CX - math.floor(pw / 2)
-        local py = Layout.SPRITE_BASELINE - ph
+        local px, py = Layout.spritePos(pw, ph)
         -- SummaryMenu draws the front pic mirrored; sx = -1 anchored at the
         -- block's right edge lands it on px..px+pw
         love.graphics.draw(self.sprite, px + pw, py, 0, -1, 1)

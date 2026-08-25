@@ -69,6 +69,10 @@ Layout.SPRITE_CX = 124
 -- floating 4px over it
 Layout.SPRITE_BASELINE = 80
 
+function Layout.spritePos(pw, ph)
+  return Layout.SPRITE_CX - math.floor(pw / 2), Layout.SPRITE_BASELINE - ph
+end
+
 -- Below the stats rather than above them, so the stats strip never shifts
 -- when deposit mode opens.
 Layout.PARTY_X, Layout.PARTY_Y = 8, 120
