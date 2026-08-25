@@ -829,6 +829,7 @@ local function drew(t)
   return nil
 end
 T.check(drew("NORMAL/FLYING") ~= nil, "both types print on one slash-joined line")
+T.check(drew("DV 15/10/10/10") ~= nil, "the DV spread prints for the focused mon")
 T.eq(#marks, 3, "a shiny DV spread draws the three-stroke diamond mark")
 
 -- the identity moved up to the panel: name over level above the sprite,

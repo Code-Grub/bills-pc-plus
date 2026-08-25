@@ -291,11 +291,13 @@ return function(mod)
       Font.draw(("SPC %3d"):format(stats.special or 0),
                 Layout.STATS_X + 80, Layout.STATS_Y + row)
     end
-    -- The type line sits under SPD/SPC.  Deposit mode's party frame (box C)
-    -- covers this row, so it is box view's bonus row -- the frame, not a
-    -- row count, decides whether it shows.  Display names go through
-    -- TypeChart for the same reason SummaryMenu does: PSYCHIC's stored
-    -- constant would print as "PSYCHIC_TYPE" (#214).
+    -- The type line sits under SPD/SPC, and the DV spread under that -- both
+    -- are box view's bonus rows: deposit mode's party frame (box C) covers
+    -- them, so the frame, not a row count, decides whether they show.
+    -- Display names go through TypeChart for the same reason SummaryMenu
+    -- does: PSYCHIC's stored constant would print as "PSYCHIC_TYPE" (#214).
+    -- The DV line surfaces the hidden numbers breeders sort boxes by; zeros
+    -- are honest (a mon with no DVs has them).
     if self.mode ~= "deposit" then
       local def = self.session.data.pokemon[mon.species]
       local t = def and def.types
@@ -306,6 +308,10 @@ return function(mod)
         end
         Font.draw(line, Layout.STATS_X, Layout.STATS_Y + row * 2)
       end
+      local dvs = mon.dvs or {}
+      Font.draw(("DV %d/%d/%d/%d"):format(dvs.attack or 0, dvs.defense or 0,
+        dvs.speed or 0, dvs.special or 0),
+        Layout.STATS_X, Layout.STATS_Y + row * 3)
     end
   end
 
