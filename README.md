@@ -42,6 +42,9 @@ something, and it tells you when it does.
   the START menu's SAVE. Browsing writes nothing and shows nothing.
 - **Readable cursor** — blinking corner marks on the selected cell, holding
   steady over a carry's landing spot, readable on empty slots.
+- **Stays Gen 1** — everything is drawn from the game itself: the same font,
+  window borders, palette and sound effects as the vanilla PC, so the grid
+  reads like something the Game Boy could have shipped.
 
 ## Install
 
