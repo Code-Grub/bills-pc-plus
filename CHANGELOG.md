@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.1
+
+- Box view's stats window gains a DV spread line under the types: the
+  hidden numbers breeders and competitive players sort boxes by, shown for
+  the focused mon.
+- The README links the newest release instead of pinning a version.
+
 ## 0.9.0
 
 - The focused mon's name and level moved from the stats strip to a plate
