@@ -1,7 +1,7 @@
 name: Release
 
 # Packs the mod into an installable .zip and publishes it as a GitHub Release,
-# once per push to main.
+# once per push to master.
 #
 # Archive layout: every mod file at the archive root, manifest.json included.
 # That is one of the two shapes the game accepts on MODS > Import mod .zip
@@ -24,10 +24,11 @@ name: Release
 
 on:
   push:
-    branches: [main]
+    branches: [master]
     paths-ignore:
       - '.github/**'
       - '**.md'
+      - 'LICENSE'
   workflow_dispatch:
     inputs:
       version:

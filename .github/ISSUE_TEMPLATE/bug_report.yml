@@ -1,0 +1,90 @@
+name: Bug report
+description: Something in the PC screen behaves wrong, looks wrong, or crashes.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. The fields below are the ones that usually
+        decide whether a box bug is reproducible, so please fill them in
+        before describing the problem.
+
+  - type: input
+    id: mod-version
+    attributes:
+      label: Bill's PC+ version
+      description: The version in the mod manager, or the release zip you installed.
+      placeholder: "0.9.2"
+    validations:
+      required: true
+
+  - type: input
+    id: game-version
+    attributes:
+      label: Game version
+      description: Which build of the Gen 1 Recompilation Project you are running.
+      placeholder: "e.g. 1.2.0, or the commit you built from"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install
+    attributes:
+      label: How is it installed?
+      options:
+        - Mod manager (FIND MODS / Import mod .zip)
+        - Manually unzipped into mods/bills_pc_plus/
+        - Running from a git checkout
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened, and what did you expect instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: |
+        Where the cursor was, which box, and which inputs you pressed. Screenshots
+        or a short clip help a lot for anything that looks wrong on screen.
+      placeholder: |
+        1. Open the PC, choose WITHDRAW POKéMON
+        2. Page right to BOX 3
+        3. Press A on the mon in the top-left cell
+        4. ...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: sav-history
+    attributes:
+      label: Has this save been through a .sav export or import?
+      description: |
+        Box gaps ride in the engine save, not the cartridge format — an export packs
+        each box in reading order and an import refills it solid. If the save has
+        made that round trip, the layout is expected to have changed.
+      options:
+        - "No, the save has only ever been used in the recomp"
+        - "Yes, it was imported from a .sav"
+        - "Yes, it was exported to a .sav and brought back"
+        - "Not sure"
+    validations:
+      required: true
+
+  - type: textarea
+    id: other-mods
+    attributes:
+      label: Other mods enabled
+      description: Anything else that touches the UI or the save, if any.
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error text or log output
+      description: Paste any Lua error or console output here. It will be formatted automatically.
+      render: text

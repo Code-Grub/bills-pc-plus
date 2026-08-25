@@ -105,3 +105,9 @@ and depositing is `B` then pick.
 ## Version
 
 Newest release: [releases/latest](https://github.com/Code-Grub/bills-pc-plus/releases/latest) — full history in [CHANGELOG.md](CHANGELOG.md).
+
+## License
+
+MIT — see [LICENSE](LICENSE). Fork it, bundle it, build on it; just keep the
+notice. The mod draws its font, borders, palette and sounds from the game at
+runtime and ships no game assets of its own.
