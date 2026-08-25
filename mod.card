@@ -6,13 +6,14 @@ return {
   differences = {
     changed = {
       "the PC box screen is a grid instead of a menu stack",
-      "changing box no longer forces a save",
+      "the PC never writes the save -- not on a box change, not on the way out",
     },
     added = {
       "pick up and drop to rearrange within and across boxes, gaps included",
       "front sprite and condensed stats shown beside the grid",
     },
-    known = { "gaps ride in the engine save, not the cartridge format: a .sav export packs each box in reading order, an import refills solid" },
+    known = { "gaps ride in the engine save, not the cartridge format: a .sav export packs each box in reading order, an import refills solid",
+              "a PC visit is lost with the rest of an unsaved session: the PC no longer writes SRAM the way vanilla did on a box change" },
   },
   compat = { engine = ">=1.0.0 <2.0.0", modApi = 2 },
 }

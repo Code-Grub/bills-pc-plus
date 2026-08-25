@@ -91,7 +91,11 @@ s:pageBox(-1)
 T.eq(game.save.currentBox, 12, "paging back off box 1 wraps to 12")
 T.eq(s.dirty, false, "paging never sets dirty")
 
--- ------- commit only writes when dirty
+-- ------- commit reconciles in memory and never writes
+-- The mod does not initiate saves at all: commit reconciles the sparse
+-- mirror into save.boxes and stops there.  Bytes reach disk only when the
+-- game itself decides to write, which is what the save.write wrapper in
+-- main.lua is for.
 
 local g2, writes = newGame()
 local s2 = BoxSession.new(g2)
@@ -100,10 +104,10 @@ T.eq(writes(), 0, "a clean commit never calls writeSave")
 
 s2.dirty = true
 T.eq(s2:commit(), true, "a dirty session commits")
-T.eq(writes(), 1, "commit calls writeSave exactly once")
+T.eq(writes(), 0, "a dirty commit does not call writeSave either")
 T.eq(s2.dirty, false, "commit clears the dirty flag")
-T.eq(s2:commit(), false, "committing twice writes once")
-T.eq(writes(), 1, "the second commit is a no-op")
+T.eq(s2:commit(), false, "committing twice reconciles once")
+T.eq(writes(), 0, "the second commit is a no-op")
 
 -- ------- commit packs the sparse layer and records the layout
 
@@ -122,7 +126,7 @@ T.eq(gC.save.boxes[1][2].species, "FIXMON_C", "cell 3 packs second")
 T.eq(gC.save.boxes[1][3].species, "FIXMON_B", "cell 6 packs third")
 T.eq(table.concat(gC.save.bpp_layout[1], ","), "1,3,6",
   "the layout records the occupied cells ascending")
-T.eq(writesC(), 1, "the commit wrote once")
+T.eq(writesC(), 0, "packing the boxes wrote nothing to disk")
 
 -- and a fresh session over the same save restores the exact gaps
 local sC2 = BoxSession.new(gC)

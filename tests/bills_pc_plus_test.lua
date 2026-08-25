@@ -637,11 +637,10 @@ end
 T.check(contiguous, "the column has no gaps")
 
 -- ------- leaving the PC announces the save
--- The player should never have the game written under them silently.  This
--- is the engine's own SaveMenu .save sequence (src/ui/StartMenu.lua:70-86,
--- engine/menus/save.asm:164-181): a "Now saving..." page, the write on its
--- onDone, then a confirmation page with the save jingle.  Neither page
--- takes a button press.
+-- The mod never initiates a save.  Leaving the PC reconciles the sparse
+-- mirror into save.boxes and stops there: no dialog, no write, whether or
+-- not anything moved.  Bytes reach disk only when the game itself decides
+-- to write, which the save.write wrapper below is what makes safe.
 local function exitWith(dirty, row)
   local writes, pushed = 0, {}
   local g = {
@@ -663,30 +662,75 @@ local _, _, quietPushed, quietWrites = exitWith(false, "seeya")
 T.eq(#quietPushed, 0, "a browse-only visit shows no save dialog")
 T.eq(quietWrites(), 0, "and writes nothing")
 
--- something moved: the dialog appears BEFORE the write
-local g1, _, pushed1, writes1 = exitWith(true, "seeya")
-T.eq(#pushed1, 1, "SEE YA! after a change opens the saving dialog")
-T.eq(writes1(), 0, "the write has not happened yet -- the dialog comes first")
-T.check(pushed1[1].auto ~= nil, "the first page auto-advances, taking no button press")
+-- something moved: still no dialog, and still nothing reaches disk
+local _, menu1, pushed1, writes1 = exitWith(true, "seeya")
+T.eq(#pushed1, 0, "SEE YA! after a change opens no dialog either")
+T.eq(writes1(), 0, "and the mod never calls writeSave")
+T.eq(menu1.session.dirty, false, "the session is reconciled on the way out")
 
--- advancing the first page performs the write and shows the confirmation
-pushed1[1].onDone()
-T.eq(writes1(), 1, "the write happens on the first page's onDone")
-T.eq(#pushed1, 2, "and the confirmation page follows")
-T.check(pushed1[2].auto ~= nil, "the confirmation also auto-advances")
-T.eq(g1.save.player.name, "RED", "the confirmation names the player")
+-- backing out of the menu behaves exactly the same
+local _, menu2, pushed2, writes2 = exitWith(true, "cancel")
+T.eq(#pushed2, 0, "backing out after a change shows no dialog")
+T.eq(writes2(), 0, "and writes nothing")
+T.eq(menu2.session.dirty, false, "and reconciles too")
 
--- backing out of the menu announces it too
-local _, _, pushed2, writes2 = exitWith(true, "cancel")
-T.eq(#pushed2, 1, "backing out after a change also opens the dialog")
-pushed2[1].onDone()
-T.eq(writes2(), 1, "and writes once")
+-- ------- the save.write wrapper
+-- save.boxes is stale for as long as the PC is open: withdraw hands the mon
+-- to the party immediately (BoxSession.lua) while the packed box still
+-- holds it, and commit only runs on the way out.  A write from anywhere
+-- else in that window -- F1 (src/core/Game.lua:584), another mod -- would
+-- serialize the mon into both places.  The mod claims the engine's
+-- save.write seam (src/core/Game.lua:1003) and reconciles first.
+local hooks = run.loader.hooks
+T.check(hooks.chains and hooks.chains["save.write"], "the mod wraps save.write")
 
--- the session is clean afterwards, so a second exit does not write again
-local _, menu3, pushed3, writes3 = exitWith(true, "seeya")
-pushed3[1].onDone()
-T.eq(writes3(), 1, "one write")
-T.eq(menu3.session.dirty, false, "the session is clean after committing")
+-- drive the seam the way Game:writeSave does
+local function driveWrite(g)
+  return hooks:call("save.write", function() return true end, g)
+end
+
+local function openPC(seed)
+  local g = {
+    data = Data,
+    save = { party = {}, boxes = seed, currentBox = 1 },
+    input = { wasPressed = function() return false end, isDown = function() return false end },
+  }
+  g.stack = { push = function() end, pop = function() end }
+  local menu = Screens.get(g, "BoxMenu").new(g)
+  return g, menu
+end
+
+-- withdraw, then let the game write mid-visit: the mon must not exist twice
+local dupGame, dupMenu = openPC({ { monOfSpecies("FIXMON_A", 5) }, {}, {} })
+T.eq(dupMenu.session:withdraw(1, 1), true, "the mon is withdrawn")
+T.eq(#dupGame.save.party, 1, "the party has it immediately")
+T.eq(#dupGame.save.boxes[1], 1, "and the packed box has not caught up yet")
+driveWrite(dupGame)
+T.eq(#dupGame.save.party, 1, "the write leaves the party alone")
+T.eq(#dupGame.save.boxes[1], 0, "and the wrapper reconciled the box first -- no duplicate")
+T.eq(dupMenu.session.dirty, false, "the session is clean after the wrapper reconciled")
+
+-- deposit, then the same: the mon must not vanish
+local dropGame, dropMenu = openPC({ {}, {}, {} })
+dropGame.save.party[1] = monOfSpecies("FIXMON_B", 7)
+dropGame.save.party[2] = monOfSpecies("FIXMON_C", 9)
+T.eq(dropMenu.session:deposit(2, 1), true, "the mon is deposited")
+T.eq(#dropGame.save.party, 1, "the party lost it immediately")
+T.eq(#dropGame.save.boxes[1], 0, "and the packed box has not caught up yet")
+driveWrite(dropGame)
+T.eq(#dropGame.save.boxes[1], 1, "the wrapper put it in the box before the write")
+T.eq(dropGame.save.boxes[1][1].species, "FIXMON_C", "and it is the right mon")
+
+-- a clean visit gives the wrapper nothing to do, and it never blocks a write
+local calmGame = openPC({ { monOfSpecies("FIXMON_A", 5) }, {}, {} })
+T.eq(driveWrite(calmGame), true, "the wrapper passes the write through")
+T.eq(#calmGame.save.boxes[1], 1, "and browsing changed nothing")
+
+-- another mod's veto survives the wrapper
+local vetoGame = openPC({ {}, {}, {} })
+hooks:wrap("save.write", function() return false end, nil, "test_veto")
+T.eq(driveWrite(vetoGame), false, "a veto downstream still reaches Game:writeSave")
+hooks:removeOwner("test_veto")
 
 -- ------- dpad repeat
 -- A held direction acts on the press frame, then after HELD_DELAY frames

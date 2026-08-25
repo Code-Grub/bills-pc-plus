@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.10.0
+
+- The PC no longer writes your save. Moving a Pokemon used to end the visit
+  with the "Now saving..." sequence; now it ends the visit, and what you did
+  rides along with your next ordinary save the way the rest of your progress
+  does. Leaving after moving six mons looks exactly like leaving after
+  moving none. The trade is the one vanilla never made: quit without saving
+  and the PC visit goes with everything else you did since.
+- Box data can no longer be written half-reconciled. The grid keeps its own
+  copy of the boxes while the PC is open, and the packed save only caught up
+  when you left, so a save landing inside that window -- the F1 hotkey,
+  another mod -- wrote a withdrawn Pokemon into the party *and* the box it
+  came from, or a deposited one into neither. The mod now wraps the engine's
+  `save.write` hook and reconciles before any save captures state, whoever
+  started it.
+- `save.currentBox` follows the box you were last looking at rather than
+  being held back until something moved. Nothing writes on its own either
+  way, and the PC reopens where you left it.
+
 ## 0.9.4
 
 - Picking a mon up to look at it and putting it back no longer counts as a

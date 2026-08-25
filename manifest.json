@@ -1,7 +1,7 @@
 {
   "id": "bills_pc_plus",
   "name": "Bill's PC Plus",
-  "version": "0.9.4",
+  "version": "0.10.0",
   "api": 2,
   "entry": "main.lua",
   "profile": "content",
@@ -12,6 +12,6 @@
   "dependencies": [],
   "optional_dependencies": [],
   "conflicts": [],
-  "description": "Replaces the PC box screen with a grid interface: free box paging with no forced save, grab-and-place rearranging, and an inline art and stats panel.",
+  "description": "Replaces the PC box screen with a grid interface: free box paging that never writes your save, grab-and-place rearranging, and an inline art and stats panel.",
   "github": "Code-Grub/bills-pc-plus"
 }

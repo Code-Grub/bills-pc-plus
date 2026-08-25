@@ -135,9 +135,11 @@ function BoxSession:pageBox(delta)
   return true
 end
 
--- Runs on exit.  Browsing must never write, so only a content change
--- reaches here.  Guarded the way src/ui/BoxMenu.lua:205 guards it, which
--- also keeps the call headless-safe.
+-- Reconciles the sparse mirror back into the packed save, in memory.  The
+-- mod initiates no saves of its own: this runs on the way out of the PC so
+-- save.boxes is authoritative between visits, and again from main.lua's
+-- save.write wrapper so a write landing mid-visit finds the same thing.
+-- Browsing never sets dirty, so a browse-only visit stops at the guard.
 function BoxSession:commit()
   if not self.dirty then return false end
   local layout = {}
@@ -157,7 +159,6 @@ function BoxSession:commit()
   -- Engine-save extension, outside the cartridge region: GenSave's
   -- encodeBoxRegion reads only save.boxes and never sees this.
   self.save.bpp_layout = layout
-  if self.game.writeSave then self.game:writeSave() end
   self.dirty = false
   return true
 end

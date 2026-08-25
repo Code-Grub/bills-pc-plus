@@ -669,37 +669,42 @@ return function(mod)
     }, Screen)
   end
 
+  -- save.boxes is stale for as long as the PC is open: the party changes the
+  -- moment a mon is withdrawn or deposited, while the box it left or landed
+  -- in only catches up when the session reconciles on the way out.  A write
+  -- landing inside that window -- F1 (src/core/Game.lua:584), another mod --
+  -- would serialize the mon into both places or neither.  The engine routes
+  -- every save through save.write (src/core/Game.lua:1003) before world
+  -- state is captured, so reconcile there.  Returning next's value keeps a
+  -- veto further down the chain intact; the mod never vetoes and never
+  -- writes, it only makes the boxes true for whoever does.
+  local live = nil
+
+  mod.hooks:wrap("save.write", function(next, game)
+    if live then live:commit() end
+    return next(game)
+  end)
+
   -- The entry screen is the withdraw/deposit menu, the same shape vanilla
   -- src/ui/BoxMenu.lua returns.  WITHDRAW and DEPOSIT carry keepOpen so the
   -- menu stays on the stack beneath the grid (src/ui/Menu.lua:93); B in the
   -- grid then pops back here for free, and that is how the player switches
   -- between the two modes.  Because the menu outlives the grid it is also
-  -- the only place the save is committed -- via SEE YA! or by backing out.
+  -- where the session is reconciled -- via SEE YA! or by backing out.
   mod.content.screens:register("BoxMenu", {
     new = function(game)
       local session = BoxSession.new(game)
-      -- Leaving with something changed announces the write rather than
-      -- doing it silently.  This is the engine's own SaveMenu .save
-      -- sequence (src/ui/StartMenu.lua:70-86, engine/menus/save.asm
-      -- :164-181): a "Now saving..." page held on a timer, the write on its
-      -- onDone, then a confirmation page with the save jingle.  Neither
-      -- page takes a button press, matching how SAVE behaves from the
-      -- START menu, so the player reads the same thing in both places.
-      local function commitWithNotice()
-        if not session.dirty then return end
-        game.stack:push(mod.ui.TextBox.new(game, "Now saving...", function()
-          session:commit()
-          local who = (game.save.player and game.save.player.name) or "RED"
-          game.stack:push(mod.ui.TextBox.new(game,
-            ("%s saved\nthe game!"):format(who), nil, {
-            auto = {
-              sound = function()
-                return require("src.core.Sound").play(game.data, "Save")
-              end,
-              delay = 30,
-            },
-          }))
-        end, { auto = { delay = 120 } }))
+      live = session -- the wrapper above reconciles this one until it exits
+      -- Leaving reconciles and stops.  The PC used to announce a write
+      -- here because it performed one; it performs none now, so there is
+      -- nothing to announce and a visit that moved six mons closes exactly
+      -- like one that moved none.  What the player did rides along with the
+      -- next save the game itself makes -- START menu SAVE, the cable club,
+      -- the Hall of Fame -- and the wrapper above keeps that write honest
+      -- whenever it lands.
+      local function exit()
+        session:commit()
+        live = nil
       end
 
       local menu = mod.ui.Menu.new(game, {
@@ -709,13 +714,13 @@ return function(mod)
         { label = "DEPOSIT POKéMON", keepOpen = true, onSelect = function()
             game.stack:push(newGrid(game, session, "deposit"))
           end },
-        { label = "SEE YA!", onSelect = commitWithNotice },
+        { label = "SEE YA!", onSelect = exit },
       }, {
         tx = 0, ty = 0, th = 8,
         -- Bill's PC runs silent end to end (BIT_NO_MENU_BUTTON_SOUND,
         -- engine/menus/pokemon_pc.asm)
         noSound = true,
-        onCancel = commitWithNotice,
+        onCancel = exit,
       })
       -- the session outlives each grid push, so expose it on the menu
       menu.session = session

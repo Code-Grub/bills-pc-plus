@@ -4,7 +4,7 @@
 
 **A storage-system overhaul for the [Pokémon Gen 1 Recompilation Project](https://github.com/bryanthaboi/pokemon-gen1-recomp-project).**
 
-Free box paging with no forced save · grab-and-place rearranging · an inline art and stats panel
+Free box paging that never writes your save · grab-and-place rearranging · an inline art and stats panel
 
 <p align="center">
   <a href="https://github.com/Code-Grub/bills-pc-plus/releases/latest"><img src="https://img.shields.io/github/v/release/Code-Grub/bills-pc-plus?style=flat&label=release&color=306230" alt="Latest release"/></a>
@@ -17,8 +17,8 @@ Free box paging with no forced save · grab-and-place rearranging · an inline a
 ---
 
 Bill's PC+ replaces the built-in PC box screen with a grid interface. Browse and
-rearrange your boxes freely — the game is only written when you actually move
-something, and it tells you when it does.
+rearrange your boxes freely — the PC never writes your save at all, so nothing
+interrupts you and nothing is decided for you.
 
 <p align="center">
   <img src="images/demo_box_v3.gif" width="480" alt="Box view: the 5x4 grid with gaps, the selected Pokemon's sprite and stats — cursor blinks, MOVE and page"/><br/>
@@ -33,8 +33,7 @@ something, and it tells you when it does.
 ## Features
 
 - **Free box paging** — walk the cursor off the left or right edge of the grid
-  to page between boxes. No forced save when you switch; `save.currentBox` only
-  persists if you move something.
+  to page between boxes. No prompt, no save, no interruption.
 - **Grab-and-place, with gaps** — pick a Pokemon up with `A`, drop it on any
   cell. Swap if the slot is occupied, place if it is free, and the rest stay
   exactly where they were. Cross-box moves just work.
@@ -43,9 +42,11 @@ something, and it tells you when it does.
   describing the Pokemon in hand while you carry it.
 - **Deposit mode** — your party appears as a row under the box; pick one and
   page the destination box independently.
-- **Honest saves** — the PC menu is the only place the game writes your save,
-  and it announces it with the same "Now saving... / saved the game!" pages as
-  the START menu's SAVE. Browsing writes nothing and shows nothing.
+- **The PC never writes your save** — not when you page, not when you move a
+  Pokemon, not on the way out. Whatever you did rides along with your next
+  ordinary save, so saving stays where you chose to put it: the START menu.
+  The flip side is real — quit without saving and the PC visit goes with
+  everything else you did since.
 - **Readable cursor** — blinking corner marks on the selected cell, holding
   steady over a carry's landing spot, readable on empty slots.
 - **Stays Gen 1** — everything is drawn from the game itself: the same font,
@@ -70,7 +71,7 @@ Opening the PC shows a menu:
 |---|---|
 | WITHDRAW POKéMON | Opens the box grid |
 | DEPOSIT POKéMON | Opens the box grid with your party shown as a row |
-| SEE YA! | Leaves the PC, saving if anything moved |
+| SEE YA! | Leaves the PC |
 
 `B` from either grid returns to this menu, so switching between withdrawing
 and depositing is `B` then pick.
@@ -102,8 +103,14 @@ and depositing is `B` then pick.
   .sav packs each box in reading order; importing one refills that box
   solid. A box the game changed outside the PC (a catch, a trade) fills
   its gaps from the left on the next visit.
-- `save.currentBox` does not persist if the player only browsed. Changing box
-  never marks the save dirty, since that is the point of the feature.
+- **The PC no longer writes, so it no longer protects you.** Vanilla wrote
+  SRAM on every box change, which meant a deposit could not be lost. Here a
+  deposit lives in memory like the rest of your progress until you save from
+  the START menu. Any save the game makes carries the boxes correctly,
+  whenever it happens: the mod wraps the engine's `save.write` hook and
+  reconciles its layout before the bytes are captured.
+- `save.currentBox` follows the box you were last looking at, and persists
+  with your next save whether or not you moved anything.
 - If every cell of every box is full, cancelling a carry refuses with a
   message and the Pokemon stays in hand, rather than creating an
   over-capacity box.
