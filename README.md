@@ -6,6 +6,12 @@
 
 Free box paging with no forced save · grab-and-place rearranging · an inline art and stats panel
 
+<p align="center">
+  <a href="https://github.com/Code-Grub/bills-pc-plus/releases/latest"><img src="https://img.shields.io/github/v/release/Code-Grub/bills-pc-plus?style=flat&label=release&color=306230" alt="Latest release"/></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/Code-Grub/bills-pc-plus?style=flat&color=306230" alt="MIT license"/></a>
+  <img src="https://img.shields.io/badge/lua-L%C3%96VE-306230?style=flat" alt="Written in Lua for LOVE"/>
+</p>
+
 </div>
 
 ---
