@@ -366,4 +366,105 @@ local okC2, reasonC2 = sr:release(1, 2)
 T.eq(okC2, false, "releasing while carrying is refused")
 T.eq(reasonC2, "carrying", "the refusal names the reason")
 
+-- ------- a carry that ends where it started is not a change
+
+-- The module's contract is that browsing never writes (see the commit
+-- comment): picking a mon up to look at it and putting it back is the
+-- browsing case that still reached commit.  pickUp leaves dirty alone,
+-- but drop and cancelCarry both set it unconditionally, so the PC ran its
+-- whole "Now saving..." sequence over a box that had not changed.
+local gPut, putWrites = newGame()
+gPut.save.boxes = nil
+Boxes.ensure(gPut.save)
+gPut.save.boxes[1] = { monOf("FIXMON_A"), monOf("FIXMON_B") }
+local sPut = BoxSession.new(gPut)
+
+sPut:pickUp(1, 1)
+sPut:drop(1, 1)
+T.eq(sPut.dirty, false, "dropping a mon back on its own cell changes nothing")
+T.eq(sPut:commit(), false, "so there is nothing to commit")
+T.eq(putWrites(), 0, "and the save is never written")
+
+sPut:pickUp(1, 2)
+T.eq(sPut:cancelCarry(), true, "a carry cancels back to its origin")
+T.eq(sPut.dirty, false, "cancelling back to the origin changes nothing either")
+
+-- the fix must not blunt the flag: a mon that actually moves still writes
+sPut:pickUp(1, 1)
+sPut:drop(1, 5)
+T.eq(sPut.dirty, true, "dropping a mon on a different cell is a change")
+T.eq(sPut:commit(), true, "and it commits")
+
+-- nor may an undone swap look clean: the swap itself moved the occupant
+local gSwap = newGame()
+Boxes.ensure(gSwap.save)
+gSwap.save.boxes[1] = { monOf("FIXMON_A"), monOf("FIXMON_B") }
+local sSwap = BoxSession.new(gSwap)
+sSwap:pickUp(1, 1)
+sSwap:drop(1, 2)             -- swap: A into cell 2, B comes up into the hand
+sSwap:drop(1, 1)             -- B down into cell 1, the hand's origin
+T.eq(sSwap.dirty, true, "an undone swap still moved both mons, so it writes")
+T.eq(layoutOf(sSwap, 1), "1:FIXMON_B,2:FIXMON_A", "and the two really did trade cells")
+
+-- ------- a corrupt bpp_layout cannot crash the PC
+
+-- SaveData serializes the whole save table, so bpp_layout is reachable by
+-- anything that writes a save -- another mod, a hand-repaired save file.
+-- The per-cell loop already guards its entries; the container never was,
+-- and ipairs on a number throws inside BoxSession.new, which is the
+-- instant the player opens the PC.
+local gBad = newGame()
+Boxes.ensure(gBad.save)
+gBad.save.boxes[1] = { monOf("FIXMON_A"), monOf("FIXMON_B") }
+gBad.save.bpp_layout = 7
+local okBad, sBad = pcall(BoxSession.new, gBad)
+T.eq(okBad, true, "a bpp_layout that is not a table is ignored, not fatal")
+T.eq(okBad and sBad:count(1) or -1, 2, "and the box still unpacks its mons")
+
+local gBad2 = newGame()
+Boxes.ensure(gBad2.save)
+gBad2.save.boxes[1] = { monOf("FIXMON_A") }
+gBad2.save.bpp_layout = { "not a layout" }
+local okBad2, sBad2 = pcall(BoxSession.new, gBad2)
+T.eq(okBad2, true, "nor is a per-box entry that is not a table")
+T.eq(okBad2 and sBad2:count(1) or -1, 1, "and that box unpacks too")
+
+-- ------- an over-capacity box keeps the mons the grid cannot show
+
+-- commit rewrites every box from the sparse copy, so a box holding more
+-- than CAPACITY loses the overflow the moment any other box is touched --
+-- the grid has only CAPACITY cells to unpack into.  The cartridge format
+-- caps a box at CAPACITY, so this needs an outside writer to create, but
+-- silently dropping mons is the wrong answer to finding one.
+local gOver = newGame()
+Boxes.ensure(gOver.save)
+gOver.save.boxes[1] = { monOf("FIXMON_A") }
+local over = {}
+for i = 1, Boxes.CAPACITY + 3 do over[i] = monOf("FIXMON_B") end
+gOver.save.boxes[2] = over
+local sOver = BoxSession.new(gOver)
+T.eq(sOver:count(2), Boxes.CAPACITY, "the grid shows what its cells can hold")
+sOver:release(1, 1)           -- touch box 1 only
+sOver:commit()
+T.eq(#gOver.save.boxes[2], Boxes.CAPACITY + 3,
+  "an untouched over-capacity box keeps every mon through a commit")
+
+-- and it has to stay stable: reopening the PC re-unpacks the same box, so
+-- a session that keeps the overflow only once still bleeds mons per visit
+local sOver2 = BoxSession.new(gOver)
+sOver2:release(2, 1)
+sOver2:commit()
+T.eq(#gOver.save.boxes[2], Boxes.CAPACITY + 2,
+  "a second visit loses exactly the one mon that was released, no more")
+
+-- ------- deposit defaults to the box the player is looking at
+local gDep = newGame()
+Boxes.ensure(gDep.save)
+gDep.save.party = { monOf("FIXMON_A"), monOf("FIXMON_B") }
+gDep.save.currentBox = 3
+local sDep = BoxSession.new(gDep)
+local okDep = sDep:deposit(1)
+T.eq(okDep, true, "deposit with no box named lands in the current box")
+T.eq(sDep:count(3), 1, "the mon is in the box the player was paged to")
+
 T.finish("bills_pc_plus box_session")

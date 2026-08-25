@@ -184,26 +184,44 @@ return function(mod)
     end
   end
 
+  -- Front sprites retained per screen.  Sized for the neighbourhood a
+  -- player actually walks back and forth over, not for all 240 cells.
+  local SPRITE_CACHE_MAX = 16
+
   local function drawPanel(self)
     local mon = self:focused()
     if not mon then return end
     local path, trueColor = Sprites.path(self.game.data, mon.species, "front",
       { mon = mon, kind = "summary" })
     if path then
-      self._spriteCache = self._spriteCache or {}
-      local cached = self._spriteCache[path]
-      if cached ~= nil then
-        self.sprite = cached.img
-        self.spriteTrueColor = cached.trueColor
-        self.spritePath = path
-      elseif self.spritePath ~= path then
-        local ok, img = pcall(love.graphics.newImage, path)
-        self._spriteCache[path] = { img = ok and img or nil, trueColor = ok and img and trueColor or false }
-        cached = self._spriteCache[path]
-        self.sprite = cached.img
-        self.spriteTrueColor = cached.trueColor
-        self.spritePath = path
+      -- One Screen outlives the whole PC visit and the player can walk
+      -- every cell of every box, so an unbounded cache holds a love image
+      -- per mon seen.  The win it exists for is revisiting a mon a few
+      -- cells away, which a small cache already covers; past the cap it
+      -- drops wholesale rather than keeping LRU bookkeeping that would
+      -- cost more than the reload it saves at this size.
+      local cache = self._spriteCache
+      if not cache then
+        cache, self._spriteCacheN = {}, 0
+        self._spriteCache = cache
       end
+      local cached = cache[path]
+      if not cached then
+        if self._spriteCacheN >= SPRITE_CACHE_MAX then
+          cache, self._spriteCacheN = {}, 0
+          self._spriteCache = cache
+        end
+        local ok, img = pcall(love.graphics.newImage, path)
+        cached = { img = ok and img or nil }
+        cache[path] = cached
+        self._spriteCacheN = self._spriteCacheN + 1
+      end
+      self.sprite = cached.img
+      -- Only the image is a property of the path.  Sprites.path runs the
+      -- pokemon.sprite hook every call with the focused mon in ctx, so
+      -- trueColor is a property of this mon -- a hook can return one file
+      -- for two mons and flag only one of them.  Read it fresh.
+      self.spriteTrueColor = (cached.img and trueColor) and true or false
       if self.sprite then
         local pw, ph = self.sprite:getDimensions()
         local px, py = Layout.spritePos(pw, ph)

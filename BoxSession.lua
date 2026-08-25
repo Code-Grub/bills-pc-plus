@@ -64,9 +64,9 @@ function BoxSession.new(game)
     carry = nil,
     dirty = false,
   }, BoxSession)
-  self.sparse = {}
+  self.sparse, self.overflow = {}, {}
   for b = 1, Boxes.COUNT do
-    self.sparse[b] = self:unpackBox(b)
+    self.sparse[b], self.overflow[b] = self:unpackBox(b)
   end
   return self
 end
@@ -78,7 +78,14 @@ end
 -- (a .sav imported over a gapped layout) simply packs solid.
 function BoxSession:unpackBox(b)
   local packed = Boxes.ensure(self.save)[b] or {}
-  local layout = self.save.bpp_layout and self.save.bpp_layout[b]
+  -- The container is as untrusted as its cells.  SaveData serializes the
+  -- whole save table, so anything that writes a save can leave a number or
+  -- a string here, and ipairs on one throws inside BoxSession.new -- the
+  -- moment the PC opens.  A layout that is not a table is simply no
+  -- layout: the box packs solid, which is what a fresh save does anyway.
+  local root = self.save.bpp_layout
+  local layout = type(root) == "table" and root[b] or nil
+  if type(layout) ~= "table" then layout = nil end
   local s = {}
   local k = 1
   if layout then
@@ -97,7 +104,17 @@ function BoxSession:unpackBox(b)
       k = k + 1
     end
   end
-  return s
+  -- A box holding more mons than the grid has cells has nowhere to put the
+  -- rest.  The cartridge format cannot encode that, so it takes an outside
+  -- writer to create -- but commit rewrites every box from its sparse copy,
+  -- so leaving them here would delete them the moment another box is
+  -- touched.  They ride along instead and commit appends them back.
+  local overflow = {}
+  while k <= #packed do
+    overflow[#overflow + 1] = packed[k]
+    k = k + 1
+  end
+  return s, overflow
 end
 
 function BoxSession:box(n)
@@ -126,7 +143,11 @@ function BoxSession:commit()
   local layout = {}
   for b = 1, Boxes.COUNT do
     local s = self.sparse[b]
-    self.save.boxes[b] = toPacked(s)
+    local packed = toPacked(s)
+    for _, mon in ipairs(self.overflow[b] or {}) do
+      packed[#packed + 1] = mon
+    end
+    self.save.boxes[b] = packed
     local cells = {}
     for i = 1, Boxes.CAPACITY do
       if s[i] then cells[#cells + 1] = i end
@@ -180,6 +201,9 @@ function BoxSession:deposit(partySlot, boxNum)
   local mon = self.save.party[partySlot]
   if not mon then return false, "no_mon" end
   if #self.save.party <= 1 then return false, "last_mon" end
+  -- default here rather than at the message below, where it read as a
+  -- fallback but could never run: firstFree would already have thrown
+  boxNum = boxNum or self.save.currentBox
   local s = self.sparse[boxNum]
   local slot = firstFree(s)
   if not slot then return false, "box_full" end
@@ -191,7 +215,7 @@ function BoxSession:deposit(partySlot, boxNum)
   self.dirty = true
   self:cry(mon)
   self.game.stringBuffer = self:nameOf(mon)
-  self.game.boxNumString = tostring(boxNum or self.save.currentBox)
+  self.game.boxNumString = tostring(boxNum)
   return true
 end
 
@@ -201,7 +225,10 @@ function BoxSession:pickUp(boxNum, slot)
   local mon = s and s[slot]
   if not mon then return false, "no_mon" end
   s[slot] = nil
-  self.carry = { mon = mon, box = boxNum, slot = slot }
+  -- wasDirty is what the flag returns to if this mon ends up back in the
+  -- cell it came out of: lifting a mon to look at it and putting it down
+  -- is browsing, and browsing must not write
+  self.carry = { mon = mon, box = boxNum, slot = slot, wasDirty = self.dirty }
   return true
 end
 
@@ -217,14 +244,17 @@ function BoxSession:drop(boxNum, slot)
   local occupant = s[slot]
   if occupant then
     s[slot] = held
-    self.carry = { mon = occupant, box = boxNum, slot = slot }
+    -- The swap moved the occupant, so it is a change in its own right:
+    -- the mon now in hand has no clean cell to return to.
+    self.carry = { mon = occupant, box = boxNum, slot = slot, wasDirty = true }
     self.dirty = true
     return true, "swapped"
   end
   if cellCount(s) >= Boxes.CAPACITY then return false, "box_full" end
   s[slot] = held
+  local home = boxNum == self.carry.box and slot == self.carry.slot
+  if home then self.dirty = self.carry.wasDirty else self.dirty = true end
   self.carry = nil
-  self.dirty = true
   return true, "placed"
 end
 
@@ -250,8 +280,9 @@ function BoxSession:cancelCarry()
     if not slot then return false, "storage_full" end
   end
   dest[slot] = self.carry.mon
+  local home = dest == origin and slot == self.carry.slot
+  if home then self.dirty = self.carry.wasDirty else self.dirty = true end
   self.carry = nil
-  self.dirty = true
   return true
 end
 

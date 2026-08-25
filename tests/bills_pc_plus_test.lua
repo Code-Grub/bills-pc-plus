@@ -987,6 +987,58 @@ T.eq(#zones, #expected, "one whole-screen zone, like ListMenu's generic")
 T.eq(zones[1].x, 0, "the zone starts at the canvas edge")
 T.eq(zones[1].w, 160, "the zone spans the full canvas width")
 
+-- ------- the sprite cache keeps images, not palette decisions
+
+-- Sprites.path resolves the path AND a trueColor flag, and it runs the
+-- pokemon.sprite hook every call with the focused mon in ctx.  A hook may
+-- return the same file for two mons and still flag only one of them --
+-- a palette-based shiny is exactly that shape.  Caching trueColor beside
+-- the image keys a per-mon decision on a per-path key, so the second mon
+-- inherits the first one's answer.
+local Sprites = require("src.pokemon.Sprites")
+local PaletteFX = require("src.render.PaletteFX")
+local cacheGame = {
+  data = Data,
+  save = { party = {}, boxes = { { monOfSpecies("FIXMON_A", 5) } }, currentBox = 1 },
+  stack = { push = function() end, pop = function() end },
+  input = { wasPressed = function() return false end,
+            isDown = function() return false end },
+}
+local cacheGrid = openGrid(cacheGame, "WITHDRAW POKéMON")
+
+local realSpritePath = Sprites.path
+local flagTrueColor = false
+Sprites.path = function() return "shared/front.png", flagTrueColor end
+local realMark = PaletteFX.markTrueColor
+local marked = 0
+PaletteFX.markTrueColor = function(...) marked = marked + 1 return realMark(...) end
+
+cacheGrid:draw()                       -- plain mon: same path, flag false
+T.eq(marked, 0, "a plain mon is not marked for true colour")
+flagTrueColor = true
+cacheGrid:draw()                       -- same path, flag now true
+T.eq(marked, 1, "the flag is read fresh, not inherited from the cached path")
+
+-- ------- the sprite cache does not grow without bound
+-- One Screen lives for the whole PC visit, and the player can walk every
+-- cell of every box: 12 x 20 mons, each holding a love image for as long
+-- as the screen does.  The cache exists to save a reload on revisit, and a
+-- bounded one still does that.
+local seen = 0
+Sprites.path = function()
+  seen = seen + 1
+  return ("sprite/%d.png"):format(seen), false
+end
+for _ = 1, 40 do cacheGrid:draw() end
+local held = 0
+for _ in pairs(cacheGrid._spriteCache or {}) do held = held + 1 end
+T.check(held <= 16,
+  ("the cache holds at most 16 sprites, not one per mon visited (held %d)"):format(held))
+T.check(cacheGrid.sprite ~= nil, "and the mon on screen still has its sprite")
+
+Sprites.path = realSpritePath
+PaletteFX.markTrueColor = realMark
+
 run.release()
 Screens.invalidate()
 T.finish("bills_pc_plus")

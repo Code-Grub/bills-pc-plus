@@ -193,7 +193,7 @@ jobs:
 
           gh release create "$TAG" \
             --target "$GITHUB_SHA" \
-            --title "$VERSION" \
+            --title "Bill's PC Plus $VERSION" \
             --notes "$notes" \
             "dist/${MOD_ID}-${VERSION}.zip" \
             "dist/sha256sums.txt"

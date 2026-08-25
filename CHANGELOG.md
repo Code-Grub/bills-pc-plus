@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.9.4
+
+- Picking a mon up to look at it and putting it back no longer counts as a
+  change. Browsing was never supposed to write, but the carry set the dirty
+  flag on the way down regardless of where the mon landed, so a cancelled
+  MOVE ran the whole "Now saving..." sequence over a box that had not
+  moved. A carry that ends on the cell it started from now leaves the flag
+  where it found it -- while a swap, which really did move the occupant,
+  still counts.
+- A `bpp_layout` that is not a table no longer takes the PC down with it.
+  The per-cell guard was already there; the container itself was trusted,
+  and anything that writes a save can reach it, so opening the PC on a save
+  another tool had touched could throw before the grid ever drew.
+- A box holding more mons than the grid has cells keeps them. Committing
+  rewrites every box from its sparse copy, so mons past the twentieth used
+  to disappear the moment any other box was touched. They ride alongside
+  the layout now and go back into the save untouched.
+- Front sprites are held in a bounded cache rather than one that grew for
+  every mon the player walked past, and the true-colour flag is read fresh
+  for each mon instead of being remembered against the sprite's path -- a
+  hook can serve one file for two mons and flag only one of them.
+- Releases carry their name again: the packaging workflow titled them with
+  a bare version number.
+
 ## 0.9.3
 
 - A nickname carrying a gender symbol no longer scrolls out of its own
