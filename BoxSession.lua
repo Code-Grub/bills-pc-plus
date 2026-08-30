@@ -30,6 +30,55 @@ local Stats = require("src.pokemon.Stats")
 local BoxSession = {}
 BoxSession.__index = BoxSession
 
+-- Order-sensitive digest of the mons a layout was recorded against.
+--
+-- Only fields that cannot change while a mon sits in a box are fed in: a
+-- boxed mon leaves through the PC, which re-records the layout, or it does
+-- not change at all.  Deliberately excluded are ot/otId, which restoreSave
+-- backfills on saves written before OT stamping (src/battle/BattleState.lua
+-- stampOT), and moves, which SaveData.validate prunes against the merged
+-- data -- either would break the digest on load for reasons that have
+-- nothing to do with the box changing.  dvs and level are clamped by
+-- scrubKnownMon, which is a no-op on values that were already in range.
+local DV_ORDER = { "attack", "defense", "speed", "special" }
+
+local function digest(packed, n)
+  local h = 2166136261
+  local function feed(v)
+    local sv = tostring(v)
+    for i = 1, #sv do
+      h = (h * 33 + sv:byte(i)) % 4294967296
+    end
+    h = (h * 33 + 1) % 4294967296 -- field separator: "1","2" must not read as "12"
+  end
+  for k = 1, n do
+    local mon = packed[k]
+    if type(mon) ~= "table" then return nil end
+    feed(mon.species)
+    feed(mon.level)
+    feed(mon.exp)
+    local dvs = type(mon.dvs) == "table" and mon.dvs or {}
+    for _, stat in ipairs(DV_ORDER) do feed(dvs[stat]) end
+  end
+  -- two halves: %x on a value above 2^31 is not portable across Lua builds
+  return string.format("%04x%04x", math.floor(h / 65536), h % 65536)
+end
+
+-- The guard for one box: nil when there is nothing to check against, false
+-- when what is there cannot be read, otherwise the { n, d } record.  Absent
+-- and malformed are answered differently on purpose -- see unpackBox.
+local function guardFor(save, b)
+  local root = save.bpp_guard
+  if root == nil then return nil end
+  if type(root) ~= "table" then return false end
+  local g = root[b]
+  if g == nil then return nil end
+  if type(g) ~= "table" or type(g.n) ~= "number" or type(g.d) ~= "string" then
+    return false
+  end
+  return g
+end
+
 -- sparse -> packed: occupied cells in ascending order, no holes
 local function toPacked(sparse)
   local t = {}
@@ -86,6 +135,30 @@ function BoxSession:unpackBox(b)
   local root = self.save.bpp_layout
   local layout = type(root) == "table" and root[b] or nil
   if type(layout) ~= "table" then layout = nil end
+  -- The cells only mean anything for the exact mon list they were recorded
+  -- against: packed mon k sits at the kth of them, so a mon removed from the
+  -- middle of a box outside the PC shifts every later one down an index and
+  -- the remembered cells land on the wrong mons.  SaveData.validate's scrub
+  -- does exactly that (table.remove) when a species-adding mod is disabled.
+  -- The guard is a digest of the mons the layout described; a box that no
+  -- longer matches it packs solid, which is the honest answer once the
+  -- layout has stopped describing the box.  A box that only GREW still
+  -- matches -- the digest covers the first n only -- so a mon caught since
+  -- the last visit still fills the leftmost gap and moves nobody.
+  --
+  -- No guard at all is not the same as one that will not read.  Saves from
+  -- before the guard existed, and the demo tools, carry cells alone: there
+  -- is nothing to verify them against, so they are trusted exactly as they
+  -- were and re-guarded on the next commit.  A guard that is malformed is
+  -- evidence something else wrote here, so that box packs solid.
+  if layout then
+    local guard = guardFor(self.save, b)
+    if guard == false then
+      layout = nil
+    elseif guard and (#packed < guard.n or digest(packed, guard.n) ~= guard.d) then
+      layout = nil
+    end
+  end
   local s = {}
   local k = 1
   if layout then
@@ -142,7 +215,7 @@ end
 -- Browsing never sets dirty, so a browse-only visit stops at the guard.
 function BoxSession:commit()
   if not self.dirty then return false end
-  local layout = {}
+  local layout, guard = {}, {}
   for b = 1, Boxes.COUNT do
     local s = self.sparse[b]
     local packed = toPacked(s)
@@ -155,10 +228,14 @@ function BoxSession:commit()
       if s[i] then cells[#cells + 1] = i end
     end
     layout[b] = cells
+    -- The cells describe the sparse mons, which pack into the first #cells
+    -- of the box; any overflow rides behind them and no cell claims it.
+    guard[b] = { n = #cells, d = digest(packed, #cells) }
   end
   -- Engine-save extension, outside the cartridge region: GenSave's
   -- encodeBoxRegion reads only save.boxes and never sees this.
   self.save.bpp_layout = layout
+  self.save.bpp_guard = guard
   self.dirty = false
   return true
 end

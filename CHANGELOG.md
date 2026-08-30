@@ -1,5 +1,31 @@
 # Changelog
 
+## Unreleased
+
+- A box that something else rearranged now drops its gaps instead of
+  putting them on the wrong Pokemon. `bpp_layout` says "packed mon k sits
+  at the kth remembered cell", which only means anything for the mon list
+  it was recorded against; `SaveData.validate` removes a boxed mon with
+  `table.remove` when a species-adding mod is disabled, so every later mon
+  shifts down an index and the remembered cells land one mon off. Commit
+  now stores a digest of the mons each layout described, and a box that no
+  longer matches packs solid. A box that only grew still matches, so a mon
+  caught since the last visit still fills the leftmost gap and moves
+  nobody, and a layout from before the digest existed is trusted as it
+  always was.
+- The digest is fed only on fields a boxed mon cannot change: species,
+  level, exp and DVs. `ot`/`otId` are deliberately left out because
+  `restoreSave` backfills them on saves written before OT stamping, and
+  moves because `SaveData.validate` prunes them; either would have failed
+  to match on load and flattened the player's gaps every single time.
+  There is a test that opens a real save, sends it through validate and
+  the serializer, and reopens it.
+- The boxes are now pinned against losing a Pokemon down any of these
+  paths. A stale digest, a count larger than the box, duplicate or
+  out-of-range cells, a layout that is not a table: whatever the save
+  says, every mon that was in the box is still there after the PC has
+  unpacked and committed it, overflow included.
+
 ## 0.10.0
 
 - The PC no longer writes your save. Moving a Pokemon used to end the visit

@@ -101,8 +101,18 @@ and depositing is `B` then pick.
   stores a count byte followed by that many contiguous Pokemon — no hole
   encoding — so the layout rides in the engine save beside it. Exporting a
   .sav packs each box in reading order; importing one refills that box
-  solid. A box the game changed outside the PC (a catch, a trade) fills
-  its gaps from the left on the next visit.
+  solid. A mon caught since your last visit fills the leftmost gap and
+  moves nobody. Trading does not disturb the boxes at all: a trade swaps
+  a party slot, so the layout is untouched.
+- **A box something else rearranged loses its gaps, rather than muddling
+  them.** The layout says "packed mon k sits at the kth remembered cell",
+  which only means anything for the mon list it was recorded against.
+  Anything that removes a Pokemon from the middle of a box from outside
+  the PC (disabling a mod that added species is the one way to do it
+  today) shifts every later mon down an index. The mod stores a digest
+  of the mons each layout described and packs that box solid when it no
+  longer matches, so the gaps go rather than landing on the wrong
+  Pokemon. No Pokemon is moved or lost either way.
 - **The PC no longer writes, so it no longer protects you.** Vanilla wrote
   SRAM on every box change, which meant a deposit could not be lost. Here a
   deposit lives in memory like the rest of your progress until you save from

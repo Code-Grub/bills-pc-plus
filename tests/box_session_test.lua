@@ -471,4 +471,207 @@ local okDep = sDep:deposit(1)
 T.eq(okDep, true, "deposit with no box named lands in the current box")
 T.eq(sDep:count(3), 1, "the mon is in the box the player was paged to")
 
+-- ------- a box the outside world reordered drops its gaps rather than
+-- misplacing them
+
+-- bpp_layout maps packed mon k onto the kth remembered cell, so it is only
+-- meaningful for the exact mon list it was recorded against.  Anything that
+-- removes a mon from the middle of a box shifts every later mon down one
+-- index -- SaveData.validate's scrub does exactly that (table.remove) when a
+-- species-adding mod is disabled -- and the remembered cells then land on the
+-- wrong mons.  commit stores a digest of the mons the layout described; a box
+-- that no longer matches it packs solid, which is the honest answer when the
+-- layout no longer describes the box.
+
+local gScrub = newGame()
+BoxSession.new(gScrub)
+gScrub.save.boxes[1] = { monOf("FIXMON_A"), monOf("FIXMON_B"), monOf("FIXMON_C") }
+local sScrub = BoxSession.new(gScrub)
+sScrub:pickUp(1, 2)
+sScrub:drop(1, 6)                 -- A at 1, C at 3, B at 6
+T.eq(sScrub:commit(), true, "the gapped layout commits")
+T.eq(table.concat(gScrub.save.bpp_layout[1], ","), "1,3,6",
+  "and records its cells")
+T.eq(type(gScrub.save.bpp_guard) == "table"
+     and type(gScrub.save.bpp_guard[1]) == "table", true,
+  "commit records a guard beside the layout")
+local guard1 = type(gScrub.save.bpp_guard) == "table" and gScrub.save.bpp_guard[1]
+T.eq(type(guard1) == "table" and guard1.n or -1, 3,
+  "the guard counts the mons the layout described")
+
+-- packed is now {A, C, B}; the scrub takes the middle one, so what is left
+-- would land on cells 1 and 3 if the stale layout were still trusted
+table.remove(gScrub.save.boxes[1], 2)
+local sAfter = BoxSession.new(gScrub)
+T.eq(layoutOf(sAfter, 1), "1:FIXMON_A,2:FIXMON_B",
+  "a box that no longer matches its guard packs solid")
+T.eq(sAfter:count(1), 2, "and keeps both surviving mons")
+
+-- ------- growth is not a mismatch
+
+-- A mon caught since the last visit is appended to the packed box, so the
+-- mons the layout described are still the first n and still in order.  That
+-- has to keep working: filling the leftmost gap is the whole reason a catch
+-- does not disturb the rest of the box.
+local gGrow = newGame()
+BoxSession.new(gGrow)
+gGrow.save.boxes[1] = { monOf("FIXMON_A"), monOf("FIXMON_B") }
+local sGrow = BoxSession.new(gGrow)
+sGrow:pickUp(1, 2)
+sGrow:drop(1, 5)                  -- A at 1, B at 5
+sGrow:commit()
+table.insert(gGrow.save.boxes[1], monOf("FIXMON_C"))   -- a catch
+local sGrown = BoxSession.new(gGrow)
+T.eq(layoutOf(sGrown, 1), "1:FIXMON_A,2:FIXMON_C,5:FIXMON_B",
+  "a mon appended since the commit fills the first gap and moves nobody")
+
+-- ------- a layout with no guard is still trusted
+
+-- Saves written before the guard existed carry cells and nothing else, as do
+-- the demo and screenshot tools.  There is nothing to verify them against, so
+-- they behave exactly as they did: trusted, and re-guarded on the next commit.
+local gOld = newGame()
+BoxSession.new(gOld)
+gOld.save.boxes[1] = { monOf("FIXMON_A"), monOf("FIXMON_B") }
+gOld.save.bpp_layout = { [1] = { 4, 9 } }
+local sOld = BoxSession.new(gOld)
+T.eq(layoutOf(sOld, 1), "4:FIXMON_A,9:FIXMON_B",
+  "a guardless layout restores its cells")
+
+-- ------- a malformed guard packs solid
+
+-- Absent is "nothing to check against"; malformed is "something wrote here".
+-- The second cannot be verified either, but it is evidence the save was
+-- touched, so the box packs solid rather than trusting cells it cannot check.
+local gJunk = newGame()
+BoxSession.new(gJunk)
+gJunk.save.boxes[1] = { monOf("FIXMON_A"), monOf("FIXMON_B") }
+gJunk.save.bpp_layout = { [1] = { 4, 9 } }
+gJunk.save.bpp_guard = { [1] = "not a guard" }
+local okJunk, sJunk = pcall(BoxSession.new, gJunk)
+T.eq(okJunk, true, "a malformed guard is not fatal")
+T.eq(okJunk and layoutOf(sJunk, 1) or "", "1:FIXMON_A,2:FIXMON_B",
+  "and the box packs solid")
+
+local gJunk2 = newGame()
+BoxSession.new(gJunk2)
+gJunk2.save.boxes[1] = { monOf("FIXMON_A") }
+gJunk2.save.bpp_layout = { [1] = { 4 } }
+gJunk2.save.bpp_guard = 7
+local okJunk2, sJunk2 = pcall(BoxSession.new, gJunk2)
+T.eq(okJunk2, true, "nor is a bpp_guard that is not a table")
+T.eq(okJunk2 and sJunk2:count(1) or -1, 1, "and the box keeps its mon")
+
+-- ------- no arrangement of layout and guard may lose a mon
+
+-- The guard decides whether a layout is trusted, and a rejected layout sends
+-- the box down the pack-solid path -- a branch that runs on saves another
+-- writer has touched, which is exactly where mons would go missing quietly.
+-- Whatever the layout and guard say, every mon that was in the box has to be
+-- somewhere afterwards: unpack puts each one in a cell or in overflow, and
+-- commit puts all of both back.
+local function census(box)
+  local seen = {}
+  for _, mon in ipairs(box) do
+    seen[mon.species] = (seen[mon.species] or 0) + 1
+  end
+  local out = {}
+  for species, n in pairs(seen) do out[#out + 1] = species .. "x" .. n end
+  table.sort(out)
+  return table.concat(out, ",")
+end
+
+local hostile = {
+  { name = "no layout at all",      layout = nil,             guard = nil },
+  { name = "a stale guard",         layout = { 1, 4, 9 },     guard = { n = 3, d = "deadbeef" } },
+  { name = "a guard counting more mons than the box holds",
+                                    layout = { 1, 4, 9 },     guard = { n = 99, d = "deadbeef" } },
+  { name = "a negative count",      layout = { 1, 4, 9 },     guard = { n = -5, d = "deadbeef" } },
+  { name = "a malformed guard",     layout = { 1, 4, 9 },     guard = "not a guard" },
+  { name = "duplicate cells",       layout = { 4, 4, 4 },     guard = nil },
+  { name = "out-of-range cells",    layout = { 0, 99, -3 },   guard = nil },
+  { name = "cells that are not numbers",
+                                    layout = { "x", {}, 2 },  guard = nil },
+  { name = "a fractional cell",     layout = { 2.5, 3 },      guard = nil },
+  { name = "more cells than mons",  layout = { 1, 2, 3, 4, 5, 6 }, guard = nil },
+}
+
+for _, case in ipairs(hostile) do
+  local gH = newGame()
+  Boxes.ensure(gH.save)
+  gH.save.boxes[1] = { monOf("FIXMON_A"), monOf("FIXMON_B"), monOf("FIXMON_C") }
+  local before = census(gH.save.boxes[1])
+  gH.save.bpp_layout = { [1] = case.layout }
+  gH.save.bpp_guard = { [1] = case.guard }
+  local okH, sH = pcall(BoxSession.new, gH)
+  T.eq(okH, true, "opening the PC on " .. case.name .. " does not throw")
+  if okH then
+    sH.dirty = true
+    sH:commit()
+    T.eq(census(gH.save.boxes[1]), before,
+      "every mon survives " .. case.name)
+  end
+end
+
+-- the same, with a box the grid cannot fully show: the overflow has to come
+-- back too, whichever path the guard sends the box down
+local gHO = newGame()
+Boxes.ensure(gHO.save)
+local big = {}
+for i = 1, Boxes.CAPACITY + 2 do big[i] = monOf("FIXMON_A") end
+big[1] = monOf("FIXMON_B")
+gHO.save.boxes[1] = big
+local beforeHO = census(gHO.save.boxes[1])
+gHO.save.bpp_layout = { [1] = { 5, 6, 7 } }
+gHO.save.bpp_guard = { [1] = { n = 3, d = "deadbeef" } }  -- will not match
+local sHO = BoxSession.new(gHO)
+sHO.dirty = true
+sHO:commit()
+T.eq(census(gHO.save.boxes[1]), beforeHO,
+  "an over-capacity box keeps every mon through a rejected layout")
+
+-- ------- an ordinary save and load does not disturb the guard
+
+-- The guard is only worth having if it survives the trip a save actually
+-- takes.  SaveData.validate rewrites boxed mons on every load -- it clamps
+-- level and DVs, derives the stat block a .sav-imported mon has never had
+-- (Stats.ensure), prunes moves against the merged data -- and restoreSave
+-- backfills ot/otId on saves written before OT stamping.  A digest that fed
+-- on any of those would fail to match on load and quietly flatten the
+-- player's gaps every single time, which is worse than the bug it guards.
+local SaveData = require("src.core.SaveData")
+local SaveSerializer = require("src.core.SaveSerializer")
+local Pokemon = require("src.pokemon.Pokemon")
+
+local gRT = newGame()
+gRT.save.player = { name = "RED", id = 12345 }
+Boxes.ensure(gRT.save)
+local speciesRT = next(Data.pokemon)
+gRT.save.boxes[1] = { Pokemon.new(Data, speciesRT, 5),
+                      Pokemon.new(Data, speciesRT, 7),
+                      Pokemon.new(Data, speciesRT, 9) }
+local sRT = BoxSession.new(gRT)
+sRT:pickUp(1, 2)
+sRT:drop(1, 7)
+sRT.dirty = true
+sRT:commit()
+local cellsRT = table.concat(gRT.save.bpp_layout[1], ",")
+T.eq(cellsRT, "1,3,7", "the gapped layout commits its cells")
+
+local reloaded = SaveSerializer.decode(SaveSerializer.encode(gRT.save))
+SaveData.validate(reloaded, Data)
+local stampRT = require("src.battle.BattleState").stampOT
+for _, box in ipairs(reloaded.boxes or {}) do
+  for _, mon in ipairs(box) do stampRT(reloaded, mon) end
+end
+
+local sRT2 = BoxSession.new({ data = Data, save = reloaded,
+                              writeSave = function() end })
+local backRT = {}
+for i = 1, Boxes.CAPACITY do
+  if sRT2.sparse[1][i] then backRT[#backRT + 1] = i end
+end
+T.eq(table.concat(backRT, ","), cellsRT,
+  "the gaps come back unchanged after a real save and load")
+
 T.finish("bills_pc_plus box_session")
