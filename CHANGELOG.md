@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+- You cannot save inside the PC any more, and neither can anything else.
+  Vanilla could not either: the START menu is unreachable from the box
+  screen. Since 0.10.0 the mod reconciled the boxes for whoever wanted to
+  write mid-visit, which covered a withdrawal and a deposit but could not
+  cover a Pokemon you had picked up: it sits in the player's hand, in no
+  box and in no party, with no cell to be reconciled into. A save landing
+  there wrote it nowhere at all, and a reset before you put it down took
+  it with it. Reachable with no debug key in sight, by any mod that saves
+  on its own (Gen1AutoSave, SaveSync, Save States). The mod now takes the
+  narrow veto the engine offers at `save.write` and refuses the save
+  outright. The refusal lands before any state is captured, so nothing
+  partial reaches disk, and leaving the PC reconciles so the next ordinary
+  save carries the whole visit.
+- A save refused inside the PC now happens the moment you leave it.
+  Refusing is right; swallowing is not, because the mod that autosaved in
+  there believes it saved and so does the player, and everything since
+  their last real save would have gone with the refusal. Exit reconciles
+  the boxes, drops the session and replays the write. The replay runs the
+  whole hook chain again, so another mod's veto still decides, out where
+  the PC is no longer in the way. Nothing is ever fired that was not asked
+  for: the deferral is set only by an actual refusal, so a visit nobody
+  tried to save through leaves writing nothing, and a visit abandoned
+  without exiting (a soft reset) does not hand its deferral to the next
+  one.
+- With no PC open the hook is a pass-through, so another mod's veto still
+  decides: the refusal is for the PC, not for saving in general. It is
+  also scoped to the save the PC was opened on. The screen stack can be
+  emptied without the menu's exit ever running, a soft reset pops
+  everything, and the session left behind would otherwise have refused
+  every save for the rest of the run.
+
 - A box that something else rearranged now drops its gaps instead of
   putting them on the wrong Pokemon. `bpp_layout` says "packed mon k sits
   at the kth remembered cell", which only means anything for the mon list

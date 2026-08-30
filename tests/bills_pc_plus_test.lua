@@ -674,13 +674,18 @@ T.eq(#pushed2, 0, "backing out after a change shows no dialog")
 T.eq(writes2(), 0, "and writes nothing")
 T.eq(menu2.session.dirty, false, "and reconciles too")
 
--- ------- the save.write wrapper
--- save.boxes is stale for as long as the PC is open: withdraw hands the mon
--- to the party immediately (BoxSession.lua) while the packed box still
--- holds it, and commit only runs on the way out.  A write from anywhere
--- else in that window -- F1 (src/core/Game.lua:584), another mod -- would
--- serialize the mon into both places.  The mod claims the engine's
--- save.write seam (src/core/Game.lua:1003) and reconciles first.
+-- ------- the PC refuses saves while it is open
+
+-- Vanilla cannot save inside the PC at all: the START menu is unreachable
+-- from the box screen, and the PC's own writes went with 0.10.0.  Nothing
+-- else should manage it either.  While the grid is open the sparse mirror
+-- is the truth and save.boxes is deliberately stale, and a mon in hand is
+-- in neither -- so rather than reconcile on behalf of whoever wants to
+-- write (F1 at src/core/Game.lua:584, an autosave mod, SaveSync), the mod
+-- takes the narrow veto the engine offers (src/core/Game.lua:1003) and
+-- refuses.  The refusal lands before captureSave, so nothing partial
+-- reaches disk; leaving the PC reconciles, and the next ordinary save
+-- carries the whole visit.
 local hooks = run.loader.hooks
 T.check(hooks.chains and hooks.chains["save.write"], "the mod wraps save.write")
 
@@ -700,36 +705,123 @@ local function openPC(seed)
   return g, menu
 end
 
--- withdraw, then let the game write mid-visit: the mon must not exist twice
+-- withdraw, then let something try to write mid-visit
 local dupGame, dupMenu = openPC({ { monOfSpecies("FIXMON_A", 5) }, {}, {} })
 T.eq(dupMenu.session:withdraw(1, 1), true, "the mon is withdrawn")
 T.eq(#dupGame.save.party, 1, "the party has it immediately")
-T.eq(#dupGame.save.boxes[1], 1, "and the packed box has not caught up yet")
-driveWrite(dupGame)
-T.eq(#dupGame.save.party, 1, "the write leaves the party alone")
-T.eq(#dupGame.save.boxes[1], 0, "and the wrapper reconciled the box first -- no duplicate")
-T.eq(dupMenu.session.dirty, false, "the session is clean after the wrapper reconciled")
+T.eq(driveWrite(dupGame), false, "a write attempted inside the PC is refused")
+T.eq(#dupGame.save.party, 1, "the refusal leaves the party alone")
+T.eq(#dupGame.save.boxes[1], 1, "and nothing is reconciled behind the player's back")
+dupMenu.items[3].onSelect()
 
--- deposit, then the same: the mon must not vanish
-local dropGame, dropMenu = openPC({ {}, {}, {} })
-dropGame.save.party[1] = monOfSpecies("FIXMON_B", 7)
-dropGame.save.party[2] = monOfSpecies("FIXMON_C", 9)
-T.eq(dropMenu.session:deposit(2, 1), true, "the mon is deposited")
-T.eq(#dropGame.save.party, 1, "the party lost it immediately")
-T.eq(#dropGame.save.boxes[1], 0, "and the packed box has not caught up yet")
-driveWrite(dropGame)
-T.eq(#dropGame.save.boxes[1], 1, "the wrapper put it in the box before the write")
-T.eq(dropGame.save.boxes[1][1].species, "FIXMON_C", "and it is the right mon")
+-- the mon in hand is the case that matters most: picked up, it is in no
+-- box and in no party, so a write landing here would have recorded it
+-- nowhere at all and the next reset would have taken it with it
+local heldGame, heldMenu = openPC({ { monOfSpecies("FIXMON_A", 5),
+                                      monOfSpecies("FIXMON_B", 7) }, {}, {} })
+heldMenu.session:withdraw(1, 1)             -- a change, so the session is dirty
+T.eq(heldMenu.session:pickUp(1, 2), true, "the second mon is in hand")
+T.eq(driveWrite(heldGame), false, "a write with a mon in hand is refused too")
+T.eq(#heldGame.save.boxes[1], 2, "the packed box still holds both, untouched")
+T.eq(heldMenu.session.carry ~= nil, true, "and the mon is still in the player's hand")
+heldMenu.session:cancelCarry()
+heldMenu.items[3].onSelect()
 
--- a clean visit gives the wrapper nothing to do, and it never blocks a write
-local calmGame = openPC({ { monOfSpecies("FIXMON_A", 5) }, {}, {} })
-T.eq(driveWrite(calmGame), true, "the wrapper passes the write through")
-T.eq(#calmGame.save.boxes[1], 1, "and browsing changed nothing")
+-- leaving reconciles, and the next write goes through carrying the visit
+local doneGame, doneMenu = openPC({ { monOfSpecies("FIXMON_A", 5) }, {}, {} })
+doneMenu.session:withdraw(1, 1)
+doneMenu.items[3].onSelect()                -- SEE YA!
+T.eq(driveWrite(doneGame), true, "once the PC is closed the write goes through")
+T.eq(#doneGame.save.boxes[1], 0, "and the boxes were reconciled on the way out")
+T.eq(#doneGame.save.party, 1, "with the withdrawn mon in the party, once")
 
--- another mod's veto survives the wrapper
-local vetoGame = openPC({ {}, {}, {} })
+-- A refusal is only ever for the save the open PC belongs to.  The screen
+-- stack can be emptied without the menu's exit running -- a soft reset
+-- (src/core/Game.lua:198) pops everything -- which leaves the session
+-- behind it; whatever it is holding, it must not be able to refuse saves
+-- for a save table it has nothing to do with, or the player never saves
+-- again.
+local ghostGame, ghostMenu = openPC({ { monOfSpecies("FIXMON_A", 5) }, {}, {} })
+ghostMenu.session:withdraw(1, 1)
+local afterReset = {
+  data = Data,
+  save = { party = {}, boxes = nil, currentBox = 1 },
+  input = { wasPressed = function() return false end, isDown = function() return false end },
+}
+T.eq(driveWrite(afterReset), true,
+  "a session left over from another save blocks nothing")
+ghostMenu.items[3].onSelect()
+
+-- ------- a save refused inside the PC is honoured on the way out
+
+-- Refusing is right, swallowing is not.  An autosave mod that fired while
+-- the grid was open believes it saved, and the player believes it too; if
+-- the refusal were the end of it they would lose everything since the last
+-- real save.  So the refusal is a deferral: exit reconciles, drops the
+-- session, and then replays the write that was asked for.  Replaying goes
+-- through the whole chain again, so another mod's veto still decides, and
+-- the mod's own wrapper stands down because live is already nil by then.
+--
+-- Nothing is fired that was not asked for.  The flag is only ever set by a
+-- real refusal, so a visit no one tried to save through leaves exactly as
+-- it always did, writing nothing.  (The exitWith cases above pin that: a
+-- browse-only visit and a visit that moved six mons both call writeSave
+-- zero times.)
+local function openPCCounting(seed)
+  local writes = 0
+  local g = {
+    data = Data,
+    save = { party = {}, boxes = seed, currentBox = 1 },
+    input = { wasPressed = function() return false end, isDown = function() return false end },
+    writeSave = function() writes = writes + 1 end,
+  }
+  g.stack = { push = function() end, pop = function() end }
+  local menu = Screens.get(g, "BoxMenu").new(g)
+  return g, menu, function() return writes end
+end
+
+local defGame, defMenu, defWrites = openPCCounting({ { monOfSpecies("FIXMON_A", 5) }, {}, {} })
+defMenu.session:withdraw(1, 1)
+T.eq(driveWrite(defGame), false, "the autosave is refused while the PC is open")
+T.eq(defWrites(), 0, "and nothing is written yet")
+defMenu.items[3].onSelect()                 -- SEE YA!
+T.eq(defWrites(), 1, "leaving the PC replays the save that was refused")
+
+-- several attempts across one visit are one deferred save, not four
+local manyGame, manyMenu, manyWrites = openPCCounting({ { monOfSpecies("FIXMON_A", 5) }, {}, {} })
+manyMenu.session:withdraw(1, 1)
+driveWrite(manyGame); driveWrite(manyGame); driveWrite(manyGame)
+manyMenu.items[3].onSelect()
+T.eq(manyWrites(), 1, "four refusals in one visit replay as a single save")
+
+-- backing out of the menu is an exit too, and honours it the same way
+local backGame, backMenu, backWrites = openPCCounting({ { monOfSpecies("FIXMON_A", 5) }, {}, {} })
+driveWrite(backGame)
+backMenu.onCancel()
+T.eq(backWrites(), 1, "backing out replays it too")
+
+-- a visit nothing tried to save through still writes nothing at all
+local quietGame, quietMenu, quietWrites = openPCCounting({ { monOfSpecies("FIXMON_A", 5) }, {}, {} })
+quietMenu.session:withdraw(1, 1)
+quietMenu.items[3].onSelect()
+T.eq(quietWrites(), 0, "an unasked-for visit leaves without writing")
+
+-- an abandoned visit does not leave the deferral behind for the next one:
+-- the stack can be emptied without exit ever running (a soft reset), and
+-- the next PC visit must not fire a save on that ghost's behalf
+local ghostA, ghostAMenu = openPCCounting({ { monOfSpecies("FIXMON_A", 5) }, {}, {} })
+driveWrite(ghostA)                          -- refused, deferral pending
+local ghostB, ghostBMenu, ghostBWrites = openPCCounting({ { monOfSpecies("FIXMON_B", 7) }, {}, {} })
+ghostBMenu.items[3].onSelect()
+T.eq(ghostBWrites(), 0, "a fresh visit does not inherit an abandoned deferral")
+
+-- With no PC open the wrapper is a pass-through, so another mod's veto
+-- still decides -- the mod refuses saves for the PC, not in general.
+local vetoGame, vetoMenu = openPC({ {}, {}, {} })
+vetoMenu.items[3].onSelect()                -- close it: the wrapper stands down
+T.eq(driveWrite(vetoGame), true, "with the PC closed the wrapper passes writes through")
 hooks:wrap("save.write", function() return false end, nil, "test_veto")
-T.eq(driveWrite(vetoGame), false, "a veto downstream still reaches Game:writeSave")
+T.eq(driveWrite(vetoGame), false, "and a veto downstream still reaches Game:writeSave")
 hooks:removeOwner("test_veto")
 
 -- ------- dpad repeat

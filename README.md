@@ -45,8 +45,12 @@ interrupts you and nothing is decided for you.
 - **The PC never writes your save** — not when you page, not when you move a
   Pokemon, not on the way out. Whatever you did rides along with your next
   ordinary save, so saving stays where you chose to put it: the START menu.
-  The flip side is real — quit without saving and the PC visit goes with
-  everything else you did since.
+  Nothing else writes it either: while the PC is open, a save attempted from
+  anywhere else is refused, the way vanilla simply had no way to save in
+  there. It is not thrown away, though. If an autosave mod tried to save
+  while you were in the PC, that save happens the moment you leave. The
+  flip side is real — quit without saving and the PC visit goes
+  with everything else you did since.
 - **Readable cursor** — blinking corner marks on the selected cell, holding
   steady over a carry's landing spot, readable on empty slots.
 - **Stays Gen 1** — everything is drawn from the game itself: the same font,
@@ -116,9 +120,14 @@ and depositing is `B` then pick.
 - **The PC no longer writes, so it no longer protects you.** Vanilla wrote
   SRAM on every box change, which meant a deposit could not be lost. Here a
   deposit lives in memory like the rest of your progress until you save from
-  the START menu. Any save the game makes carries the boxes correctly,
-  whenever it happens: the mod wraps the engine's `save.write` hook and
-  reconciles its layout before the bytes are captured.
+  the START menu. While the grid is open the boxes are mid-flight, and a
+  Pokemon you have picked up is in no box and in no party at all, so the
+  mod claims the engine's `save.write` hook and refuses any save attempted
+  from inside the PC (the F1 hotkey, an autosave mod). The refusal lands
+  before a single byte is captured. Refusing is not the same as swallowing:
+  a mod that autosaved in there believes it saved, so leaving the PC
+  reconciles the boxes and then replays the save that was asked for. A
+  visit nothing tried to save through still writes nothing at all.
 - `save.currentBox` follows the box you were last looking at, and persists
   with your next save whether or not you moved anything.
 - If every cell of every box is full, cancelling a carry refuses with a

@@ -669,19 +669,45 @@ return function(mod)
     }, Screen)
   end
 
-  -- save.boxes is stale for as long as the PC is open: the party changes the
-  -- moment a mon is withdrawn or deposited, while the box it left or landed
-  -- in only catches up when the session reconciles on the way out.  A write
-  -- landing inside that window -- F1 (src/core/Game.lua:584), another mod --
-  -- would serialize the mon into both places or neither.  The engine routes
-  -- every save through save.write (src/core/Game.lua:1003) before world
-  -- state is captured, so reconcile there.  Returning next's value keeps a
-  -- veto further down the chain intact; the mod never vetoes and never
-  -- writes, it only makes the boxes true for whoever does.
-  local live = nil
+  -- You cannot save inside the PC.  Vanilla could not either -- the START
+  -- menu is unreachable from the box screen -- and the PC's own writes went
+  -- with 0.10.0, so nothing else gets to manage it on the player's behalf.
+  --
+  -- The reason is the shape of a visit.  save.boxes is deliberately stale
+  -- for as long as the grid is open: the party changes the moment a mon is
+  -- withdrawn or deposited while the box it left only catches up when the
+  -- session reconciles, and a mon picked up is in neither -- it is in the
+  -- player's hand.  A write landing in that window (F1 at
+  -- src/core/Game.lua:584, an autosave mod, SaveSync) would record a mon
+  -- twice or, holding one, not at all.  Reconciling for the writer was the
+  -- old answer; it cannot cover the hand, because a carried mon has no
+  -- cell to be reconciled into yet.
+  --
+  -- So take the narrow veto the engine offers (src/core/Game.lua:1003).  It
+  -- lands before captureSave, so nothing partial reaches disk, and leaving
+  -- the PC reconciles and lets the next ordinary save carry the whole
+  -- visit.  With no PC open the wrapper is a pass-through and returns
+  -- next's value, so a veto further down the chain still decides: the mod
+  -- refuses saves for the PC, not in general.
+  --
+  -- The save equality test is what keeps that narrow.  The screen stack can
+  -- be emptied without the menu's exit ever running -- a soft reset
+  -- (src/core/Game.lua:198) pops everything -- and the session left behind
+  -- would otherwise refuse every save for the rest of the run.  It only
+  -- speaks for the save it was opened on; a reset replaces that table
+  -- (Game:restoreSave), so the ghost stops answering.
+  -- Refusing is right; swallowing is not.  An autosave mod that fired in
+  -- here believes it saved, and so does the player, so the refusal is a
+  -- deferral: exit replays it.  The flag is only ever set by a real
+  -- refusal, so a visit nothing tried to save through still writes nothing,
+  -- which is the promise the whole mod is built on.
+  local live, pendingSave = nil, false
 
   mod.hooks:wrap("save.write", function(next, game)
-    if live then live:commit() end
+    if live and live.save == game.save then
+      pendingSave = true
+      return false
+    end
     return next(game)
   end)
 
@@ -694,7 +720,12 @@ return function(mod)
   mod.content.screens:register("BoxMenu", {
     new = function(game)
       local session = BoxSession.new(game)
-      live = session -- the wrapper above reconciles this one until it exits
+      live = session -- the wrapper above refuses saves for this one
+      -- A visit can be abandoned without exit ever running (a soft reset
+      -- pops the whole stack), and a deferral left over from one must not
+      -- fire on the next visit's way out, for a save nobody asked this
+      -- session to make.
+      pendingSave = false
       -- Leaving reconciles and stops.  The PC used to announce a write
       -- here because it performed one; it performs none now, so there is
       -- nothing to announce and a visit that moved six mons closes exactly
@@ -705,6 +736,16 @@ return function(mod)
       local function exit()
         session:commit()
         live = nil
+        -- Ordered: live has to be nil before the replay, or the wrapper
+        -- above would refuse the very write it is honouring.  commit ran
+        -- first, so the boxes the replay captures are the reconciled ones.
+        -- Replaying goes through the whole save.write chain again, so a
+        -- veto further down still decides -- it just decides out here,
+        -- where the PC is no longer in the way.
+        if pendingSave then
+          pendingSave = false
+          if game.writeSave then game:writeSave() end
+        end
       end
 
       local menu = mod.ui.Menu.new(game, {
