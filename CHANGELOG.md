@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.0
 
 - You cannot save inside the PC any more, and neither can anything else.
   Vanilla could not either: the START menu is unreachable from the box
