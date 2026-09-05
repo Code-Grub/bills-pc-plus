@@ -37,6 +37,25 @@ return function(mod)
   local Layout = sibling("Layout.lua")
   if not (BoxSession and Layout) then return end
 
+  -- The same file manifest.options_schema names, so the manager's auto-UI
+  -- and the running mod read one list of rows.  Unlike the two modules
+  -- above this one is not load-bearing: a mod whose options file went
+  -- missing still draws a box screen, it just has no row to turn off (see
+  -- showDVs).
+  local optionRows = sibling("options.lua")
+  if optionRows then mod.options:define(optionRows) end
+
+  -- Read per draw rather than cached on the Screen: the options row is
+  -- reachable while the PC is open, and re-reading is cheap enough that
+  -- the toggle lands on the next frame instead of the next visit.  nil
+  -- means the schema never loaded, and the line players have today is the
+  -- right answer when we cannot ask.
+  local function showDVs()
+    local value = mod.options:get("dv_display")
+    if value == nil then return true end
+    return value
+  end
+
   local Screen = {}
   Screen.__index = Screen
 
@@ -333,7 +352,9 @@ return function(mod)
     -- Display names go through TypeChart for the same reason SummaryMenu
     -- does: PSYCHIC's stored constant would print as "PSYCHIC_TYPE" (#214).
     -- The DV line surfaces the hidden numbers breeders sort boxes by; zeros
-    -- are honest (a mon with no DVs has them).
+    -- are honest (a mon with no DVs has them).  It is the one row here the
+    -- player can switch off, so it checks showDVs while the type line above
+    -- it does not.
     if self.mode ~= "deposit" then
       local def = self.session.data.pokemon[mon.species]
       local t = def and def.types
@@ -344,10 +365,12 @@ return function(mod)
         end
         Font.draw(line, Layout.STATS_X, Layout.STATS_Y + row * 2)
       end
-      local dvs = mon.dvs or {}
-      Font.draw(("DV %d/%d/%d/%d"):format(dvs.attack or 0, dvs.defense or 0,
-        dvs.speed or 0, dvs.special or 0),
-        Layout.STATS_X, Layout.STATS_Y + row * 3)
+      if showDVs() then
+        local dvs = mon.dvs or {}
+        Font.draw(("DV %d/%d/%d/%d"):format(dvs.attack or 0, dvs.defense or 0,
+          dvs.speed or 0, dvs.special or 0),
+          Layout.STATS_X, Layout.STATS_Y + row * 3)
+      end
     end
   end
 

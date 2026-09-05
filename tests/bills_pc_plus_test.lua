@@ -1175,6 +1175,81 @@ T.check(cacheGrid.sprite ~= nil, "and the mon on screen still has its sprite")
 Sprites.path = realSpritePath
 PaletteFX.markTrueColor = realMark
 
+-- ------- the DV line is an option, not a fixture
+-- The DV spread is the mod's headline stat row, but the hidden numbers are
+-- not what everyone wants on screen.  It hangs off a mod.options toggle
+-- (options.lua, which the manager's auto-UI finds through the manifest's
+-- options_schema).  drawStats re-reads the value every frame rather than
+-- caching it on the Screen, so flipping the row lands on the next draw
+-- with no reload -- which is why every case below reuses ONE grid.
+do
+  local row
+  for _, r in ipairs(run.loader.optionSchemas.bills_pc_plus or {}) do
+    if r.key == "dv_display" then row = r end
+  end
+  T.check(row ~= nil, "the mod defines a dv_display option row")
+  T.eq(row and row.type, "toggle", "it is a toggle, so the manager draws ON/OFF")
+  T.eq(row and row.default, true,
+    "and it defaults on, so an update does not hide the line players have")
+
+  -- FIXMON_A already carries NORMAL/FLYING and a shiny spread from the
+  -- stats strip section above; the type line and the shiny mark are the
+  -- neighbours the toggle must leave alone.
+  local dvGrid = openGrid({
+    data = Data,
+    save = { party = {}, boxes = {
+      {
+        { species = "FIXMON_A", level = 12, hp = 20,
+          dvs = { attack = 15, defense = 10, speed = 10, special = 10 },
+          statExp = {}, moves = {},
+          stats = { hp = 20, attack = 12, defense = 12, speed = 12, special = 12 } },
+      },
+    }, currentBox = 1 },
+    stack = { push = function() end, pop = function() end },
+    input = { wasPressed = function() return false end,
+              isDown = function() return false end },
+  }, "WITHDRAW POKéMON")
+
+  -- one pass returns all three things the toggle touches or must not touch
+  local function drawOnce()
+    local dv, types, marks = false, false, 0
+    local rd, rr = Font.draw, gfx.rectangle
+    Font.draw = function(text, x, ty)
+      local s = tostring(text)
+      if s == "DV 15/10/10/10" then dv = true
+      elseif s == "NORMAL/FLYING" then types = true end
+      return rd(text, x, ty)
+    end
+    gfx.rectangle = function(mode, x, y2, w, h)
+      if mode == "fill" and x >= 144 and x <= 152 and y2 >= 16 and y2 <= 28 then
+        marks = marks + 1
+      end
+      return rr(mode, x, y2, w, h)
+    end
+    dvGrid:draw()
+    Font.draw, gfx.rectangle = rd, rr
+    return dv, types, marks
+  end
+
+  -- nothing stored yet, so mod.options:get falls through to the schema
+  run.loader.modOptions.bills_pc_plus = nil
+  local dv, types, marks = drawOnce()
+  T.check(dv, "with nothing stored the DV line draws: the schema default is ON")
+
+  run.loader.modOptions.bills_pc_plus = { dv_display = false }
+  dv, types, marks = drawOnce()
+  T.eq(dv, false, "with the option off the DV line does not draw")
+  T.check(types, "the type line above it is untouched")
+  T.eq(marks, 3,
+    "and the shiny mark still draws: the toggle hides the numbers, not shininess")
+
+  run.loader.modOptions.bills_pc_plus.dv_display = true
+  dv = drawOnce()
+  T.check(dv, "turning it back on restores the line on the very next draw")
+
+  run.loader.modOptions.bills_pc_plus = nil
+end
+
 run.release()
 Screens.invalidate()
 T.finish("bills_pc_plus")

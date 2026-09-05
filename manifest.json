@@ -1,9 +1,10 @@
 {
   "id": "bills_pc_plus",
   "name": "Bill's PC Plus",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "api": 2,
   "entry": "main.lua",
+  "options_schema": "options.lua",
   "profile": "content",
   "category": "UI",
   "game_version": ">=0.0.0-0 <2.0.0",

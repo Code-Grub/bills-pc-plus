@@ -40,6 +40,11 @@ interrupts you and nothing is decided for you.
 - **Inline art and stats panel** — the selected Pokemon's front sprite and
   condensed stats (level, HP, ATK/DEF/SPD/SPC) sit beside the grid, and keep
   describing the Pokemon in hand while you carry it.
+- **DV spread, if you want it** — the hidden numbers breeders sort boxes by,
+  on the bottom line of the stats strip. It is on by default and switchable
+  from OPTIONS → MODS → BILL'S PC PLUS → DV DISPLAY, which takes effect on
+  the spot without leaving the PC. The shiny mark is not covered by the
+  toggle: that stays on the plate either way.
 - **Deposit mode** — your party appears as a row under the box; pick one and
   page the destination box independently.
 - **The PC never writes your save** — not when you page, not when you move a

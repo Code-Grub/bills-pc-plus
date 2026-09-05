@@ -11,6 +11,7 @@ return {
     added = {
       "pick up and drop to rearrange within and across boxes, gaps included",
       "front sprite and condensed stats shown beside the grid",
+      "the DV spread on the stats strip, switchable off in the mod's options",
     },
     known = { "gaps ride in the engine save, not the cartridge format: a .sav export packs each box in reading order, an import refills solid",
               "a PC visit is lost with the rest of an unsaved session: the PC no longer writes SRAM the way vanilla did on a box change" },

@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.12.0
+
+- The DV spread is now a toggle rather than a fixture. It is the one row on
+  the stats strip that shows something the game never meant you to see, and
+  not everyone wants the hidden numbers on screen while they sort. OPTIONS →
+  MODS → BILL'S PC PLUS → DV DISPLAY turns it off; the row is read on every
+  draw, so the change lands on the next frame rather than the next PC visit.
+  It defaults to ON, so nobody loses a line they already have on update.
+- The toggle covers the DV numbers only. The shiny mark keeps drawing on the
+  plate with the option off: shininess is an identity fact about the Pokemon
+  -- the thing you scan a box for -- rather than a stat readout, and it costs
+  three pixels instead of a row. With the numbers hidden the DV line simply
+  goes blank; nothing above it moves.
+
 ## 0.11.0
 
 - You cannot save inside the PC any more, and neither can anything else.
