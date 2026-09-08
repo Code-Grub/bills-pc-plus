@@ -152,6 +152,15 @@ return function(mod)
   local HELD_DELAY = 20
   local HELD_EVERY = 6
 
+  -- Frames a box-page transition takes to slide the old box off and the new
+  -- one on.  8 divides both the grid's pixel width (80) and height (64)
+  -- evenly -- 10px and 8px a frame -- so the slide never rounds and never
+  -- drops a frame off either axis.  It ticks independently of the dpad
+  -- repeat above: the hold cadence must keep counting through a slide in
+  -- progress, or a hand held on the edge would page slower than the pinned
+  -- HELD_DELAY/HELD_EVERY cadence.
+  local TRANSITION_FRAMES = 8
+
   -- Returns the direction to act on this frame, or nil.  The press edge
   -- comes from wasPressed, not isDown: a tap can be pressed and released
   -- inside one step, so the frame that acts may already read as up.  The
@@ -191,8 +200,48 @@ return function(mod)
     return nil
   end
 
+  -- Plain icon draw for the transition slide, offset by (dx, dy) and with
+  -- no per-cell scissor: the caller already clips the whole grid rect, and
+  -- a slide only ever runs a handful of frames, so a mod-supplied icon
+  -- oversized enough to bleed past its neighbour is a cosmetic nit for a
+  -- twentieth of a second, not worth a second nested scissor (drawIconClamped
+  -- already resets scissor to none on exit, so nesting it inside an outer
+  -- clip would drop the outer one).  Never animated: a blinking cursor icon
+  -- mid-slide would imply the cursor itself is moving, and it is not.
+  local function drawBoxIcons(self, box, dx, dy)
+    for i = 1, Layout.COLS * Layout.ROWS do
+      local mon = box[i]
+      if mon then
+        local x, y = Layout.slotXY(i)
+        PartyMenu.drawIcon(self.game, mon, x + dx, y + dy, false, 0, false)
+      end
+    end
+  end
+
+  -- Mid-slide, the outgoing box exits toward -dir and the incoming box
+  -- enters from +dir, both reaching offset 0 exactly as progress reaches 1
+  -- -- see the comment on startPageTransition for why dir is signed the way
+  -- it is.
   local function drawGrid(self)
     local box = self.session:box()
+    local t = self.transition
+    if t then
+      local w = Layout.COLS * Layout.CELL
+      local h = Layout.ROWS * Layout.CELL
+      local progress = t.frame / t.total
+      love.graphics.setScissor(Layout.GRID_X, Layout.GRID_Y, w, h)
+      if t.axis == "x" then
+        local advance = t.dir * w * progress
+        drawBoxIcons(self, t.oldBox, -advance, 0)
+        drawBoxIcons(self, box, t.dir * w - advance, 0)
+      else
+        local advance = t.dir * h * progress
+        drawBoxIcons(self, t.oldBox, 0, -advance)
+        drawBoxIcons(self, box, 0, t.dir * h - advance)
+      end
+      love.graphics.setScissor()
+      return
+    end
     for i = 1, Layout.COLS * Layout.ROWS do
       local mon = box[i]
       if mon then
@@ -423,6 +472,31 @@ return function(mod)
     end
   end
 
+  -- Starts the slide for a box-page change and performs the page itself in
+  -- the same call: currentBox must land synchronously with the input that
+  -- caused it (a test taps a direction and checks currentBox the very same
+  -- frame, and a held direction pages no faster than its own cadence,
+  -- neither of which the animation gets to slow down) -- the transition
+  -- purely dresses up a change that has already happened.
+  --
+  -- dir follows the sign of delta: paging forward (right in box mode, down
+  -- in deposit mode) is +1, so the incoming box enters from the positive
+  -- side and the outgoing one exits toward the negative side; paging back
+  -- flips both. oldBox is kept as a reference to the sparse table that was
+  -- current, not a copy -- nothing mutates a box mid-slide, since the mon
+  -- underneath does not change while paging, only which box is in view.
+  local function startPageTransition(self, axis, delta)
+    local oldBox = self.session:box()
+    self.session:pageBox(delta)
+    self.transition = {
+      axis = axis,
+      dir = delta > 0 and 1 or -1,
+      frame = 0,
+      total = TRANSITION_FRAMES,
+      oldBox = oldBox,
+    }
+  end
+
   -- The deposit-mode branch of Screen:update: left/right walk the party
   -- row (what to deposit), up/down page the destination box (where it
   -- goes), A deposits, B leaves deposit mode.
@@ -453,9 +527,9 @@ return function(mod)
       elseif d == "right" and self.partyCursor < #party then
         self.partyCursor = self.partyCursor + 1
       elseif d == "up" then
-        self.session:pageBox(-1)
+        startPageTransition(self, "y", -1)
       elseif d == "down" then
-        self.session:pageBox(1)
+        startPageTransition(self, "y", 1)
       end
     end
   end
@@ -505,14 +579,14 @@ return function(mod)
         if col > 0 then
           col = col - 1
         else
-          self.session:pageBox(-1)
+          startPageTransition(self, "x", -1)
           col = Layout.COLS - 1
         end
       elseif d == "right" then
         if col < Layout.COLS - 1 then
           col = col + 1
         else
-          self.session:pageBox(1)
+          startPageTransition(self, "x", 1)
           col = 0
         end
       end
@@ -524,6 +598,18 @@ return function(mod)
   function Screen:update(dt)
     self.counter = self.counter + 1
     local input = self.game.input
+
+    -- Ticked before input, not after: startPageTransition (called from
+    -- updateBoxMode/updateDeposit below) sets frame = 0, and this runs
+    -- first so that same frame draws the slide at its start rather than one
+    -- step in.  Nothing here gates input on a slide in progress -- see
+    -- startPageTransition's comment.
+    if self.transition then
+      self.transition.frame = self.transition.frame + 1
+      if self.transition.frame >= self.transition.total then
+        self.transition = nil
+      end
+    end
 
     if self.mode == "deposit" then
       updateDeposit(self, input)
@@ -689,6 +775,7 @@ return function(mod)
       heldDir = nil,
       heldCount = 0,
       heldFired = false,
+      transition = nil,
     }, Screen)
   end
 
