@@ -455,10 +455,12 @@ local function captureCursor(g, row, prep)
   gfx.rectangle = function(mode, x, y, w, h)
     if mode == "line" then
       strokes = strokes + 1
-    elseif (w <= 8 or h <= 8) and y >= 16 then
-      -- the frames fill 160px-wide rects; only cursor stubs are this small,
-      -- and the deposit header's paging triangles live above the rows the
-      -- cursor can occupy
+    elseif (w <= 8 or h <= 8) and y >= 16
+        and current[1] == 0 and current[2] == 0 and current[3] == 0 then
+      -- the frames fill 160px-wide rects; the empty-slot dot is this small
+      -- too but drawn light gray, not black; only cursor stubs are small,
+      -- black, and below y=16, and the deposit header's paging triangles
+      -- live above the rows the cursor can occupy
       stubs[#stubs + 1] = { x = x, y = y, w = w, h = h,
                             dark = current[1] == 0 and current[2] == 0 }
     end
@@ -551,6 +553,51 @@ local _, carrying = captureCursor(curGame, "WITHDRAW POKéMON", function(g)
   g.session.carry = { mon = {}, box = 1, slot = 1 }
 end)
 T.eq(#carrying, 8, "while carrying the cursor stays solid, marking the drop target")
+
+-- ------- empty slot marker
+-- A gap in the grid otherwise reads as background, indistinguishable from
+-- the white either side of the frame: every empty cell gets a small dot at
+-- its centre, and an occupied cell draws none.  2x2 fills are this mark's
+-- own signature within the grid rows -- nothing else here fills that size.
+local dotGame = {
+  data = Data,
+  save = { party = {}, boxes = nil, currentBox = 1 },
+  stack = { push = function() end, pop = function() end },
+  input = { wasPressed = function() return false end, isDown = function() return false end },
+}
+local dotGrid = openGrid(dotGame, "WITHDRAW POKéMON")
+dotGrid.session.sparse[1][1] = {
+  species = "FIXMON_A", level = 5, hp = 20, dvs = {}, statExp = {}, moves = {},
+  stats = { hp = 20, attack = 12, defense = 12, speed = 12, special = 12 },
+}
+local dots = {}
+local rDotRect = gfx.rectangle
+gfx.rectangle = function(mode, x, y, w, h)
+  if mode == "fill" and w == 2 and h == 2 and y >= L.GRID_Y and y < L.GRID_Y + L.ROWS * L.CELL then
+    dots[#dots + 1] = { x = x, y = y }
+  end
+  return rDotRect(mode, x, y, w, h)
+end
+dotGrid:draw()
+gfx.rectangle = rDotRect
+
+T.eq(#dots, L.COLS * L.ROWS - 1, "every empty cell draws a dot except the one occupied cell")
+local occX, occY = L.slotXY(1)
+local onOccupied = false
+for _, d in ipairs(dots) do
+  if d.x >= occX and d.x < occX + L.CELL and d.y >= occY and d.y < occY + L.CELL then
+    onOccupied = true
+  end
+end
+T.check(not onOccupied, "the occupied cell draws no dot")
+
+local emptyX, emptyY = L.slotXY(2)
+local dotOffset = math.floor((L.CELL - 2) / 2)
+local onCell2 = false
+for _, d in ipairs(dots) do
+  if d.x == emptyX + dotOffset and d.y == emptyY + dotOffset then onCell2 = true end
+end
+T.check(onCell2, "the dot centres in its empty cell")
 
 -- ------- a carried Pokemon stays on the panel
 -- pickUp removes the mon from the box, so reading the cell under the cursor

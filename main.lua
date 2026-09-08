@@ -207,6 +207,24 @@ return function(mod)
     return nil
   end
 
+  -- Marks an empty grid cell so a gap in a box reads as a gap rather than
+  -- background -- the 5x4 boundary is otherwise indistinguishable from the
+  -- plain white either side of it.  Two DMG-shade-1 (light gray) pixels
+  -- centred in the cell, on whole pixels like every other mark here
+  -- (cursor stubs, the shiny diamond).  Deliberately a plain dot rather
+  -- than the shiny mark's diamond, so an empty cell never reads as a
+  -- sparkle.  Called from the white stage of Screen:draw (see the comment
+  -- there): it sets its own color and restores white so the icon draws
+  -- around it stay correctly tinted.
+  local EMPTY_DOT = 2
+  local EMPTY_DOT_OFFSET = math.floor((Layout.CELL - EMPTY_DOT) / 2)
+  local function drawEmptySlot(x, y)
+    love.graphics.setColor(170 / 255, 170 / 255, 170 / 255, 1)
+    love.graphics.rectangle("fill", x + EMPTY_DOT_OFFSET, y + EMPTY_DOT_OFFSET,
+      EMPTY_DOT, EMPTY_DOT)
+    love.graphics.setColor(1, 1, 1, 1)
+  end
+
   -- Plain icon draw for the transition slide, offset by (dx, dy) and with
   -- no per-cell scissor: the caller already clips the whole grid rect, and
   -- a slide only ever runs a handful of frames, so a mod-supplied icon
@@ -214,13 +232,17 @@ return function(mod)
   -- twentieth of a second, not worth a second nested scissor (drawIconClamped
   -- already resets scissor to none on exit, so nesting it inside an outer
   -- clip would drop the outer one).  Never animated: a blinking cursor icon
-  -- mid-slide would imply the cursor itself is moving, and it is not.
+  -- mid-slide would imply the cursor itself is moving, and it is not.  Empty
+  -- cells get their dot here too, so it does not pop in only once the slide
+  -- finishes.
   local function drawBoxIcons(self, box, dx, dy)
     for i = 1, Layout.COLS * Layout.ROWS do
       local mon = box[i]
+      local x, y = Layout.slotXY(i)
       if mon then
-        local x, y = Layout.slotXY(i)
         PartyMenu.drawIcon(self.game, mon, x + dx, y + dy, false, 0, false)
+      else
+        drawEmptySlot(x + dx, y + dy)
       end
     end
   end
@@ -251,10 +273,12 @@ return function(mod)
     end
     for i = 1, Layout.COLS * Layout.ROWS do
       local mon = box[i]
+      local x, y = Layout.slotXY(i)
       if mon then
-        local x, y = Layout.slotXY(i)
         drawIconClamped(self, mon, x, y,
           self.mode == "box" and i == self.cursor and blink(self) or false)
+      else
+        drawEmptySlot(x, y)
       end
     end
   end
