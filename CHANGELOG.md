@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.13.0
+
+- Paging between boxes now slides instead of cutting instantly: the outgoing
+  box exits while the incoming one enters, 8 frames end to end (10px a frame
+  in the box view's left/right paging, 8px a frame in deposit's up/down
+  destination paging -- both exact divisions of the grid, so every step
+  lands on a whole pixel). It is a draw-time effect only: `currentBox`
+  still changes on the same input that triggered it, so nothing about when
+  a page-turn happens changed, only what the frames in between look like.
+- The cursor's dpad hold-repeat now matches the rest of the game. It used
+  to fire its first repeat after 20 frames and then every 6, noticeably
+  faster than every other menu in the game; it now reads
+  MenuRepeat.GEN1_DELAY/GEN1_RATE (30, then every 5) the same way ListMenu
+  and PokedexMenu already do, tracing back to the cartridge's own
+  JoypadLowSensitivity rather than a guessed number.
+
 ## 0.12.0
 
 - The DV spread is now a toggle rather than a fixture. It is the one row on
