@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.14.0
+
+- Empty cells in the grid now carry a mark of their own: a single black
+  pixel at the centre of each one. A gap was otherwise indistinguishable
+  from the white around the frame, so a half-full box read as a short box
+  rather than a box with holes in it -- and the 5x4 boundary the mod pages
+  through was invisible until something was standing on it. One pixel is
+  enough to show the grid's shape without competing with the icons for
+  attention the way a larger shape would. It is black rather than a
+  mid-gray because PaletteFX only anchors shade 0 and shade 3 near white
+  and black across every named palette; shades 1 and 2 are real hues that
+  vary per palette, so a gray dot would come out salmon under MEWMON and
+  some other color again elsewhere.
+- The type line now opens with a TY label, matching the DV line beneath it,
+  so the bottom two rows of the stats strip read as a labeled pair instead
+  of DV being the only row that names itself. Three characters is the most
+  either label can spend: ZAPDOS is ELECTRIC/FLYING at 15 glyphs and the
+  strip is 18 glyphs wide, so "TY " fits it exactly, while a four-letter
+  TYPE would push that one real case past the frame.
+
 ## 0.13.0
 
 - Paging between boxes now slides instead of cutting instantly: the outgoing
