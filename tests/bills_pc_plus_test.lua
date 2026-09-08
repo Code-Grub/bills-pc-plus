@@ -556,9 +556,11 @@ T.eq(#carrying, 8, "while carrying the cursor stays solid, marking the drop targ
 
 -- ------- empty slot marker
 -- A gap in the grid otherwise reads as background, indistinguishable from
--- the white either side of the frame: every empty cell gets a small dot at
--- its centre, and an occupied cell draws none.  2x2 fills are this mark's
--- own signature within the grid rows -- nothing else here fills that size.
+-- the white either side of the frame: every empty cell gets a small gray
+-- dot at its centre, and an occupied cell draws none.  1x1 GRAY fills are
+-- this mark's own signature within the grid rows -- the cursor stubs are
+-- this size class too but always black, which is why captureCursor's
+-- filter requires black.
 local dotGame = {
   data = Data,
   save = { party = {}, boxes = nil, currentBox = 1 },
@@ -571,15 +573,21 @@ dotGrid.session.sparse[1][1] = {
   stats = { hp = 20, attack = 12, defense = 12, speed = 12, special = 12 },
 }
 local dots = {}
-local rDotRect = gfx.rectangle
+local rDotRect, rDotColor = gfx.rectangle, gfx.setColor
+local dotColor = { 1, 1, 1, 1 }
+gfx.setColor = function(r, g, b, a)
+  dotColor = { r, g, b, a }
+  return rDotColor(r, g, b, a)
+end
 gfx.rectangle = function(mode, x, y, w, h)
-  if mode == "fill" and w == 2 and h == 2 and y >= L.GRID_Y and y < L.GRID_Y + L.ROWS * L.CELL then
+  if mode == "fill" and w == 1 and h == 1 and y >= L.GRID_Y and y < L.GRID_Y + L.ROWS * L.CELL
+      and dotColor[1] > 0 and dotColor[1] < 1 then
     dots[#dots + 1] = { x = x, y = y }
   end
   return rDotRect(mode, x, y, w, h)
 end
 dotGrid:draw()
-gfx.rectangle = rDotRect
+gfx.rectangle, gfx.setColor = rDotRect, rDotColor
 
 T.eq(#dots, L.COLS * L.ROWS - 1, "every empty cell draws a dot except the one occupied cell")
 local occX, occY = L.slotXY(1)
@@ -592,7 +600,7 @@ end
 T.check(not onOccupied, "the occupied cell draws no dot")
 
 local emptyX, emptyY = L.slotXY(2)
-local dotOffset = math.floor((L.CELL - 2) / 2)
+local dotOffset = math.floor((L.CELL - 1) / 2)
 local onCell2 = false
 for _, d in ipairs(dots) do
   if d.x == emptyX + dotOffset and d.y == emptyY + dotOffset then onCell2 = true end
