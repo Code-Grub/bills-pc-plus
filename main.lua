@@ -209,19 +209,22 @@ return function(mod)
 
   -- Marks an empty grid cell so a gap in a box reads as a gap rather than
   -- background -- the 5x4 boundary is otherwise indistinguishable from the
-  -- plain white either side of it.  A single DMG-shade-1 (light gray)
-  -- pixel, centred in the cell, on a whole pixel like every other mark
-  -- here (cursor stubs, the shiny diamond).  Gray rather than black: black
-  -- is this screen's vocabulary for something to act on or notice --
-  -- cursor, shiny mark, paging arrows -- and a gap is neither.  One pixel
-  -- rather than two keeps it a hint at the grid's structure, not a mark
-  -- competing with the icons for attention.  Called from the white stage
-  -- of Screen:draw (see the comment there): it sets its own color and
-  -- restores white so the icon draws around it stay correctly tinted.
+  -- plain white either side of it.  A single BLACK pixel, centred in the
+  -- cell, on a whole pixel like every other mark here (cursor stubs, the
+  -- shiny diamond).  Black, not a mid-gray: PaletteFX only anchors shade 0
+  -- (white) and shade 3 (black) near their DMG colors across every named
+  -- palette -- shades 1 and 2 are real hues that vary per palette (MEWMON's
+  -- shade 1 is salmon, data/palettes_gbc.lua), so a gray dot would come out
+  -- some other color under most of the game's COLORS modes.  One pixel
+  -- keeps it a hint at the grid's structure rather than a mark competing
+  -- with the icons for attention, the way a larger black shape would.
+  -- Called from the white stage of Screen:draw (see the comment there): it
+  -- sets its own color and restores white so the icon draws around it stay
+  -- correctly tinted.
   local EMPTY_DOT = 1
   local EMPTY_DOT_OFFSET = math.floor((Layout.CELL - EMPTY_DOT) / 2)
   local function drawEmptySlot(x, y)
-    love.graphics.setColor(170 / 255, 170 / 255, 170 / 255, 1)
+    love.graphics.setColor(0, 0, 0, 1)
     love.graphics.rectangle("fill", x + EMPTY_DOT_OFFSET, y + EMPTY_DOT_OFFSET,
       EMPTY_DOT, EMPTY_DOT)
     love.graphics.setColor(1, 1, 1, 1)
