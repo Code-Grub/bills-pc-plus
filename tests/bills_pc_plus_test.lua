@@ -1021,9 +1021,31 @@ local function drew(t)
   end
   return nil
 end
-T.check(drew("NORMAL/FLYING") ~= nil, "both types print on one slash-joined line")
-T.check(drew("DV 15/10/10/10") ~= nil, "the DV spread prints for the focused mon")
+T.check(drew("TY NORMAL/FLYING") ~= nil, "both types print on one slash-joined line, labeled")
+T.check(drew("DV 15/10/10/10") ~= nil, "the DV spread prints for the focused mon, labeled")
 T.eq(#marks, 3, "a shiny DV spread draws the three-stroke diamond mark")
+
+-- ZAPDOS (ELECTRIC/FLYING) is the longest type combo among all 151 Gen1
+-- species -- 15 glyphs, and "TY " makes 18, exactly the strip's 144px
+-- width (Layout.lua: box A's interior spans x=8..152).  A wider label
+-- here, TYPE for instance, would push this one real case past the frame;
+-- pinned so a future label change cannot reintroduce that quietly.
+local origTypes = Data.pokemon.FIXMON_A.types
+Data.pokemon.FIXMON_A.types = { "ELECTRIC", "FLYING" }
+texts = {}
+Font.draw = function(text, x, ty)
+  texts[#texts + 1] = { text = tostring(text), x = x, y = ty }
+  return realDraw(text, x, ty)
+end
+stripGrid:draw()
+Font.draw = realDraw
+Data.pokemon.FIXMON_A.types = origTypes
+local longType = drew("TY ELECTRIC/FLYING")
+T.check(longType ~= nil, "the longest real type combo (Zapdos) prints in full, not truncated")
+if longType then
+  T.check(Font.width("TY ELECTRIC/FLYING") <= 144,
+    "and fits inside the strip's 144px width")
+end
 
 -- the identity moved up to the panel: name over level above the sprite,
 -- and the strip no longer repeats them.  "FIXMON A" is eight glyphs -- one
@@ -1074,7 +1096,7 @@ end
 stripGrid:draw()
 Font.draw = realDraw
 gfx.rectangle = realRect
-T.check(drew("NORMAL/FLYING") ~= nil, "types still print for a plain mon")
+T.check(drew("TY NORMAL/FLYING") ~= nil, "types still print for a plain mon")
 T.eq(#marks, 0, "no shiny mark without the DV spread")
 
 -- ------- the identity plate measures glyphs, not bytes
@@ -1149,7 +1171,7 @@ Font.draw = function(text, x, ty)
 end
 depStrip:draw()
 Font.draw = realDraw
-T.check(drew("NORMAL/FLYING") == nil, "deposit mode hides the type line under box C")
+T.check(drew("TY NORMAL/FLYING") == nil, "deposit mode hides the type line under box C")
 
 -- ------- the screen declares its own palette zones
 -- Without sgbPalettes the grid inherits the overworld's map palette through
@@ -1272,7 +1294,7 @@ do
     Font.draw = function(text, x, ty)
       local s = tostring(text)
       if s == "DV 15/10/10/10" then dv = true
-      elseif s == "NORMAL/FLYING" then types = true end
+      elseif s == "TY NORMAL/FLYING" then types = true end
       return rd(text, x, ty)
     end
     gfx.rectangle = function(mode, x, y2, w, h)

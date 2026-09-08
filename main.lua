@@ -440,6 +440,13 @@ return function(mod)
     -- are honest (a mon with no DVs has them).  It is the one row here the
     -- player can switch off, so it checks showDVs while the type line above
     -- it does not.
+    --
+    -- The type line now carries a TY label matching DV's own two-letter
+    -- one, so the bottom two rows read as a labeled pair instead of DV
+    -- being the only row with one.  Three characters ("TY " / "DV ") is
+    -- the most either can spend: ZAPDOS is ELECTRIC/FLYING, 15 glyphs, and
+    -- the strip is 18 glyphs wide (144px) -- a four-character label like
+    -- ATK/DEF/SPD/SPC carry would push that one line past the frame.
     if self.mode ~= "deposit" then
       local def = self.session.data.pokemon[mon.species]
       local t = def and def.types
@@ -448,7 +455,7 @@ return function(mod)
         if t[2] then
           line = line .. "/" .. TypeChart.displayName(t[2])
         end
-        Font.draw(line, Layout.STATS_X, Layout.STATS_Y + row * 2)
+        Font.draw("TY " .. line, Layout.STATS_X, Layout.STATS_Y + row * 2)
       end
       if showDVs() then
         local dvs = mon.dvs or {}
