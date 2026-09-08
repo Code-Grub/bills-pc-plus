@@ -12,6 +12,7 @@ local Boxes = require("src.pokemon.Boxes")
 local Stats = require("src.pokemon.Stats")
 local TypeChart = require("src.battle.TypeChart")
 local PaletteFX = require("src.render.PaletteFX")
+local MenuRepeat = require("src.ui.MenuRepeat")
 
 return function(mod)
   local function sibling(name)
@@ -149,8 +150,14 @@ return function(mod)
   -- is the mod's worst daily grind, and the Game Boy pad has no shoulder
   -- button to page with (src/core/Input.lua:9-21), so the hold is the
   -- pager.  A and B stay on wasPressed: drops and menus must never repeat.
-  local HELD_DELAY = 20
-  local HELD_EVERY = 6
+  --
+  -- The numbers are MenuRepeat's GEN1_DELAY/GEN1_RATE -- the same cadence
+  -- ListMenu and PokedexMenu hold to, traced back to the cartridge's own
+  -- JoypadLowSensitivity (home/joypad2.asm:16-53: 30, then every 5).  A
+  -- shorter delay here would make this the one menu in the game whose
+  -- cursor takes off sooner than a player's thumb expects.
+  local HELD_DELAY = MenuRepeat.GEN1_DELAY
+  local HELD_EVERY = MenuRepeat.GEN1_RATE
 
   -- Frames a box-page transition takes to slide the old box off and the new
   -- one on.  8 divides both the grid's pixel width (80) and height (64)

@@ -828,8 +828,11 @@ hooks:removeOwner("test_veto")
 -- A held direction acts on the press frame, then after HELD_DELAY frames
 -- again, then once every HELD_EVERY.  Every nav assertion above is a tap
 -- and must behave exactly as before; this pins the hold cadence.  The two
--- constants below mirror main.lua's, which are closure locals.
-local HELD_DELAY, HELD_EVERY = 20, 6
+-- constants below mirror main.lua's, which are closure locals set from
+-- MenuRepeat.GEN1_DELAY/GEN1_RATE -- the same cadence every other Gen1 menu
+-- in the game holds to.
+local MenuRepeat = require("src.ui.MenuRepeat")
+local HELD_DELAY, HELD_EVERY = MenuRepeat.GEN1_DELAY, MenuRepeat.GEN1_RATE
 local rep = openGrid(game, "WITHDRAW POKéMON")
 game.save.currentBox = 1
 rep.cursor = 1
