@@ -223,6 +223,48 @@ T.eq(arrowFills[1].x, 70, "the up arrow's apex leads its base")
 T.check(arrowFills[4].y > arrowFills[1].y + 2,
   "the down arrow stacks under the up arrow, with air between")
 
+do
+  -- Box view marks its own paging directions instead: a left/right pair on
+  -- the same header line, one at each outer edge of the box window.  Same
+  -- three-fill triangle as deposit's, turned a quarter turn -- so six fills
+  -- again.  The band stops short of y=16: the cursor stubs sit exactly on
+  -- GRID_Y and would otherwise be counted as arrows here.
+  local boxGrid = openGrid(game, "WITHDRAW POKéMON")
+  local boxArrows = {}
+  love.graphics.rectangle = function(mode, x, y2, w, h)
+    if mode == "fill" and y2 >= 8 and y2 + h <= 16 and w <= 8 then
+      boxArrows[#boxArrows + 1] = { x = x, y = y2, w = w, h = h }
+    end
+    return arrowRect(mode, x, y2, w, h)
+  end
+  boxGrid:draw()
+  love.graphics.rectangle = arrowRect
+  T.eq(boxGrid.mode, "box", "the WITHDRAW row opens the grid in box mode")
+  T.eq(#boxArrows, 6, "the box header draws a left and a right triangle")
+
+  -- Apex column first, then the two taller ones behind it -- deposit's pair
+  -- draws its apex row first for the same reason.  1, 3, 5 is the up
+  -- triangle's own 1/3/5 row widths, read down the columns instead.
+  local heights = {}
+  for i, f in ipairs(boxArrows) do heights[i] = f.h end
+  T.eq(table.concat(heights, ","), "1,3,5,1,3,5", "each arrow tapers 1-3-5 from its apex")
+  T.eq(boxArrows[1].x, 10, "the left arrow's apex leads its base")
+  T.eq(boxArrows[3].x, 12, "the left arrow's base trails its apex")
+  T.eq(boxArrows[4].x, 85, "the right arrow's apex leads its base")
+  T.eq(boxArrows[6].x, 83, "the right arrow's base trails its apex")
+
+  -- Two pixels of air on each side: the arrows sit at the box window's outer
+  -- edges without touching the frame on the left or the divider on the right.
+  T.eq(boxArrows[1].x - L.HEADER_X, 2, "the left arrow clears the frame by two pixels")
+  T.eq(L.DIVIDER_X - (boxArrows[4].x + 1), 2, "the right arrow clears the divider by two pixels")
+
+  -- Every column is centred on the same row, so the pair reads level with
+  -- the box number rather than drifting up or down the header line.
+  for _, f in ipairs(boxArrows) do
+    T.eq(f.y * 2 + f.h, 23, "arrow columns share one vertical centre")
+  end
+end
+
 dep.partyCursor = 2
 press(dep, "a")
 T.eq(#game.save.party, 1, "A deposited the highlighted party mon")

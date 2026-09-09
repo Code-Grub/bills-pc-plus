@@ -105,17 +105,24 @@ return function(mod)
 
   local function drawHeader(self)
     local n = self.session.save.currentBox
-    -- The title centres in the box window; deposit's paging arrows stack
-    -- to the right of the number -- a matched pair of little filled
-    -- triangles in the header row's own height, up on top, two pixels of
-    -- air, down -- rather than font glyphs: the font has a down marker but
-    -- no up companion, and two shapes from the same hand read cleaner than
-    -- one glyph and one hand-drawn cousin.  Same school as the cursor
-    -- stubs and the shiny mark -- fills on whole pixels.
+    -- The title centres in the box window, and each mode marks the two
+    -- directions that page from it with a matched pair of little filled
+    -- triangles on the same line -- rather than font glyphs: the font has a
+    -- down marker but no up companion and no sideways pair at all, and
+    -- shapes from the same hand read cleaner than one glyph and a
+    -- hand-drawn cousin.  Same school as the cursor stubs and the shiny
+    -- mark -- fills on whole pixels.
+    --
+    -- Both pairs share one vertical centre, so switching modes swaps the
+    -- markers without shifting the line.  Neither is ever dimmed or
+    -- dropped: BoxSession:pageBox wraps modulo Boxes.COUNT, so both
+    -- directions are live on every box, including the first and the last.
     local label = ("BOX%d"):format(n)
     local labelX = 48 - #label * 4
     Font.draw(label, labelX, Layout.HEADER_Y)
     if self.mode == "deposit" then
+      -- Deposit pages with up and down, so its pair stacks to the right of
+      -- the number: up on top, two pixels of air, down.
       local ax = labelX + #label * 8 + 4
       love.graphics.rectangle("fill", ax + 2, 8, 1, 1)
       love.graphics.rectangle("fill", ax + 1, 9, 3, 1)
@@ -123,6 +130,24 @@ return function(mod)
       love.graphics.rectangle("fill", ax, 13, 5, 1)
       love.graphics.rectangle("fill", ax + 1, 14, 3, 1)
       love.graphics.rectangle("fill", ax + 2, 15, 1, 1)
+    else
+      -- Box view pages sideways, so it gets the same triangle turned a
+      -- quarter turn: 1, 3, 5 read down the columns is the up triangle's
+      -- own 1/3/5 read across the rows, apex first either way.
+      --
+      -- These flank the number at the box window's outer edges rather than
+      -- stacking beside it, because the row below them is the grid the
+      -- arrows page -- but they stop two pixels short of both the frame and
+      -- the divider, so neither arm ever reads as part of the chrome it
+      -- points out of.
+      local top = Layout.HEADER_Y
+      local lx, rx = Layout.HEADER_X + 2, Layout.DIVIDER_X - 3
+      love.graphics.rectangle("fill", lx, top + 3, 1, 1)
+      love.graphics.rectangle("fill", lx + 1, top + 2, 1, 3)
+      love.graphics.rectangle("fill", lx + 2, top + 1, 1, 5)
+      love.graphics.rectangle("fill", rx, top + 3, 1, 1)
+      love.graphics.rectangle("fill", rx - 1, top + 2, 1, 3)
+      love.graphics.rectangle("fill", rx - 2, top + 1, 1, 5)
     end
   end
 
