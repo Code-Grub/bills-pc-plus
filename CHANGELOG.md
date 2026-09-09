@@ -1,316 +1,168 @@
 # Changelog
 
+Written in the style described in [docs/changelog-style.md](docs/changelog-style.md):
+what changed for the player, with the reasoning left in the commit history.
+
 ## 0.14.0
 
-- Empty cells in the grid now carry a mark of their own: a single black
-  pixel at the centre of each one. A gap was otherwise indistinguishable
-  from the white around the frame, so a half-full box read as a short box
-  rather than a box with holes in it -- and the 5x4 boundary the mod pages
-  through was invisible until something was standing on it. One pixel is
-  enough to show the grid's shape without competing with the icons for
-  attention the way a larger shape would. It is black rather than a
-  mid-gray because PaletteFX only anchors shade 0 and shade 3 near white
-  and black across every named palette; shades 1 and 2 are real hues that
-  vary per palette, so a gray dot would come out salmon under MEWMON and
-  some other color again elsewhere.
-- The type line now opens with a TY label, matching the DV line beneath it,
-  so the bottom two rows of the stats strip read as a labeled pair instead
-  of DV being the only row that names itself. Three characters is the most
-  either label can spend: ZAPDOS is ELECTRIC/FLYING at 15 glyphs and the
-  strip is 18 glyphs wide, so "TY " fits it exactly, while a four-letter
-  TYPE would push that one real case past the frame.
+- Empty slots in a box now show a small dot, so a half-full box reads as a box
+  with gaps rather than a short one.
+- The type line is labelled TY, matching the DV line under it.
 
 ## 0.13.0
 
-- Paging between boxes now slides instead of cutting instantly: the outgoing
-  box exits while the incoming one enters, 8 frames end to end (10px a frame
-  in the box view's left/right paging, 8px a frame in deposit's up/down
-  destination paging -- both exact divisions of the grid, so every step
-  lands on a whole pixel). It is a draw-time effect only: `currentBox`
-  still changes on the same input that triggered it, so nothing about when
-  a page-turn happens changed, only what the frames in between look like.
-- The cursor's dpad hold-repeat now matches the rest of the game. It used
-  to fire its first repeat after 20 frames and then every 6, noticeably
-  faster than every other menu in the game; it now reads
-  MenuRepeat.GEN1_DELAY/GEN1_RATE (30, then every 5) the same way ListMenu
-  and PokedexMenu already do, tracing back to the cartridge's own
-  JoypadLowSensitivity rather than a guessed number.
+- Paging between boxes slides instead of cutting.
+- Holding a d-pad direction now repeats at the same speed as every other menu
+  in the game. It used to run noticeably faster.
 
 ## 0.12.0
 
-- The DV spread is now a toggle rather than a fixture. It is the one row on
-  the stats strip that shows something the game never meant you to see, and
-  not everyone wants the hidden numbers on screen while they sort. OPTIONS →
-  MODS → BILL'S PC PLUS → DV DISPLAY turns it off; the row is read on every
-  draw, so the change lands on the next frame rather than the next PC visit.
-  It defaults to ON, so nobody loses a line they already have on update.
-- The toggle covers the DV numbers only. The shiny mark keeps drawing on the
-  plate with the option off: shininess is an identity fact about the Pokemon
-  -- the thing you scan a box for -- rather than a stat readout, and it costs
-  three pixels instead of a row. With the numbers hidden the DV line simply
-  goes blank; nothing above it moves.
+- The DV spread can be turned off, under OPTIONS -> MODS -> BILL'S PC PLUS ->
+  DV DISPLAY. It stays on by default, and the change lands on the next frame
+  rather than the next PC visit.
+- The shiny mark keeps showing with the DV numbers hidden: it says which
+  Pokemon this is, not what its stats are.
 
 ## 0.11.0
 
-- You cannot save inside the PC any more, and neither can anything else.
-  Vanilla could not either: the START menu is unreachable from the box
-  screen. Since 0.10.0 the mod reconciled the boxes for whoever wanted to
-  write mid-visit, which covered a withdrawal and a deposit but could not
-  cover a Pokemon you had picked up: it sits in the player's hand, in no
-  box and in no party, with no cell to be reconciled into. A save landing
-  there wrote it nowhere at all, and a reset before you put it down took
-  it with it. Reachable with no debug key in sight, by any mod that saves
-  on its own (Gen1AutoSave, SaveSync, Save States). The mod now takes the
-  narrow veto the engine offers at `save.write` and refuses the save
-  outright. The refusal lands before any state is captured, so nothing
-  partial reaches disk, and leaving the PC reconciles so the next ordinary
-  save carries the whole visit.
-- A save refused inside the PC now happens the moment you leave it.
-  Refusing is right; swallowing is not, because the mod that autosaved in
-  there believes it saved and so does the player, and everything since
-  their last real save would have gone with the refusal. Exit reconciles
-  the boxes, drops the session and replays the write. The replay runs the
-  whole hook chain again, so another mod's veto still decides, out where
-  the PC is no longer in the way. Nothing is ever fired that was not asked
-  for: the deferral is set only by an actual refusal, so a visit nobody
-  tried to save through leaves writing nothing, and a visit abandoned
-  without exiting (a soft reset) does not hand its deferral to the next
-  one.
-- With no PC open the hook is a pass-through, so another mod's veto still
-  decides: the refusal is for the PC, not for saving in general. It is
-  also scoped to the save the PC was opened on. The screen stack can be
-  emptied without the menu's exit ever running, a soft reset pops
-  everything, and the session left behind would otherwise have refused
-  every save for the rest of the run.
-
-- A box that something else rearranged now drops its gaps instead of
-  putting them on the wrong Pokemon. `bpp_layout` says "packed mon k sits
-  at the kth remembered cell", which only means anything for the mon list
-  it was recorded against; `SaveData.validate` removes a boxed mon with
-  `table.remove` when a species-adding mod is disabled, so every later mon
-  shifts down an index and the remembered cells land one mon off. Commit
-  now stores a digest of the mons each layout described, and a box that no
-  longer matches packs solid. A box that only grew still matches, so a mon
-  caught since the last visit still fills the leftmost gap and moves
-  nobody, and a layout from before the digest existed is trusted as it
-  always was.
-- The digest is fed only on fields a boxed mon cannot change: species,
-  level, exp and DVs. `ot`/`otId` are deliberately left out because
-  `restoreSave` backfills them on saves written before OT stamping, and
-  moves because `SaveData.validate` prunes them; either would have failed
-  to match on load and flattened the player's gaps every single time.
-  There is a test that opens a real save, sends it through validate and
-  the serializer, and reopens it.
-- The boxes are now pinned against losing a Pokemon down any of these
-  paths. A stale digest, a count larger than the box, duplicate or
-  out-of-range cells, a layout that is not a table: whatever the save
-  says, every mon that was in the box is still there after the PC has
-  unpacked and committed it, overflow included.
+- Saving inside the PC is refused, and happens the moment you leave instead.
+  A mod that saves on its own -- autosave, save states -- could previously
+  catch you holding a Pokemon, which belongs to no box and no party, and write
+  it nowhere at all. Nothing is lost now: the save you asked for still runs, on
+  the way out.
+- Saving anywhere else is untouched, and another mod's own veto still decides.
+- A box that something else rearranged drops its gaps instead of applying them
+  to the wrong Pokemon, and no Pokemon can go missing down any of these paths.
 
 ## 0.10.0
 
 - The PC no longer writes your save. Moving a Pokemon used to end the visit
-  with the "Now saving..." sequence; now it ends the visit, and what you did
-  rides along with your next ordinary save the way the rest of your progress
-  does. Leaving after moving six mons looks exactly like leaving after
-  moving none. The trade is the one vanilla never made: quit without saving
-  and the PC visit goes with everything else you did since.
-- Box data can no longer be written half-reconciled. The grid keeps its own
-  copy of the boxes while the PC is open, and the packed save only caught up
-  when you left, so a save landing inside that window -- the F1 hotkey,
-  another mod -- wrote a withdrawn Pokemon into the party *and* the box it
-  came from, or a deposited one into neither. The mod now wraps the engine's
-  `save.write` hook and reconciles before any save captures state, whoever
-  started it.
-- `save.currentBox` follows the box you were last looking at rather than
-  being held back until something moved. Nothing writes on its own either
-  way, and the PC reopens where you left it.
+  with "Now saving..."; now what you did rides along with your next ordinary
+  save, like the rest of your progress. The trade is the one vanilla never
+  made: quit without saving and the PC visit goes with everything else.
+- A save landing mid-visit -- the F1 hotkey, another mod -- can no longer catch
+  the boxes half-updated and duplicate or drop a Pokemon.
+- The PC reopens on the box you were last looking at.
 
 ## 0.9.4
 
-- Picking a mon up to look at it and putting it back no longer counts as a
-  change. Browsing was never supposed to write, but the carry set the dirty
-  flag on the way down regardless of where the mon landed, so a cancelled
-  MOVE ran the whole "Now saving..." sequence over a box that had not
-  moved. A carry that ends on the cell it started from now leaves the flag
-  where it found it -- while a swap, which really did move the occupant,
-  still counts.
-- A `bpp_layout` that is not a table no longer takes the PC down with it.
-  The per-cell guard was already there; the container itself was trusted,
-  and anything that writes a save can reach it, so opening the PC on a save
-  another tool had touched could throw before the grid ever drew.
-- A box holding more mons than the grid has cells keeps them. Committing
-  rewrites every box from its sparse copy, so mons past the twentieth used
-  to disappear the moment any other box was touched. They ride alongside
-  the layout now and go back into the save untouched.
-- Front sprites are held in a bounded cache rather than one that grew for
-  every mon the player walked past, and the true-colour flag is read fresh
-  for each mon instead of being remembered against the sprite's path -- a
-  hook can serve one file for two mons and flag only one of them.
-- Releases carry their name again: the packaging workflow titled them with
-  a bare version number.
+- Picking a Pokemon up and putting it back where it was no longer counts as a
+  change, so a cancelled move stops running the save sequence.
+- Opening the PC on a save another tool had touched no longer crashes.
+- A box holding more Pokemon than the grid has cells keeps all of them.
+- Sprite memory no longer grows as you play.
+- Releases carry their name again instead of a bare version number.
 
 ## 0.9.3
 
-- A nickname carrying a gender symbol no longer scrolls out of its own
-  panel. The identity plate measured names in UTF-8 bytes, so a glyph
-  written in three bytes counted as three: `PIKA` plus the two gender
-  marks measured 80px against a 56px panel, and a name that fits marqueed
-  anyway -- pinned to the panel's left edge with its tail sliding. Names
-  measure glyph advances now, which is what `Font.width` is for.
-- The shiny mark moved off the HP line, up to the plate beside the level.
-  HP centres under the sprite and a three-digit `100/100` is 56px -- the
-  panel's whole width -- so the mark had been landing on top of its last
-  digit for any shiny past three-figure HP.
+- A nickname with a gender symbol in it no longer scrolls out of its panel.
+- The shiny mark moved up beside the level, so it no longer lands on top of the
+  HP readout for a shiny with three-figure HP.
 
 ## 0.9.2
 
-- Front sprites are cached rather than reloaded from disk on every focus
-  change, and sprite placement moved behind `Layout.spritePos` so every
-  view positions art the same way. Layout gained validation.
-- The README's demo GIFs loop instead of stopping on their last frame.
-- Dev assets are kept out of the release archive, and the release itself
-  is cut by a workflow rather than by hand.
+- Front sprites are cached instead of reloaded every time the focus changes.
+- The README's demo GIFs loop instead of stopping on the last frame.
+- Dev assets are kept out of the release archive.
 
 ## 0.9.1
 
-- Box view's stats window gains a DV spread line under the types: the
-  hidden numbers breeders and competitive players sort boxes by, shown for
-  the focused mon.
+- The stats window gains a DV spread line under the types, for the Pokemon in
+  focus.
 - The README links the newest release instead of pinning a version.
 
 ## 0.9.0
 
-- The focused mon's name and level moved from the stats strip to a plate
-  above its sprite, and the sprite stands on the frame floor. The strip
-  reordered around what sits above it: the box count reads under the grid,
-  the mon's HP under its sprite, with the shiny mark and status condition
-  between them. Then ATK/DEF, SPD/SPC, and the type line (box view's bonus
-  row; deposit's party frame covers it).
+- The focused Pokemon's name and level moved to a plate above its sprite, and
+  the stats strip reordered around it: the box count under the grid, HP under
+  the sprite, then ATK/DEF, SPD/SPC and the type line.
 - Boxes can hold gaps. Drop a Pokemon on any free cell and the others stay
-  exactly where they are -- no more compaction. The cartridge save cannot
-  encode a hole, so the layout rides in the engine save beside it: a .sav
-  export packs each box in reading order, an import refills that box
-  solid, and a box the game changed outside the PC (a catch, a trade)
-  fills its gaps from the left on the next visit.
-- Deposit places into the destination box's first free cell, gaps included.
-- Holding a d-pad direction now repeats: it acts on the press, then again
-  after a short delay, then steadily -- so walking the grid and paging
-  boxes no longer means tapping per step. A and B never repeat.
-- The screen now declares its own SGB palette (MEWMON, the generic
-  full-screen menu palette). Neither PC menu above the overworld declares
-  one, so the box previously inherited the current map's palette -- the
-  icons changed color depending on where you were standing when you opened
-  the PC.
-- The grid remembers the cursor. Leaving to the WITHDRAW/DEPOSIT menu and
-  coming back puts you on the cell you left, in deposit mode too, with the
-  party cursor clamped to the party that is actually there.
-- The stats strip shows three facts the vanilla PC never did: the focused
-  mon's types (box view; deposit mode covers that row with the party
-  frame), a status condition if it carries one, and a `*` mark when its DVs
-  are the shiny spread.
+  where they are. Exporting a `.sav` packs each box solid, and a box the game
+  changed outside the PC -- a catch, a trade -- fills its gaps from the left on
+  your next visit.
+- Deposit places into the destination box's first free cell.
+- Holding a d-pad direction repeats, so walking the grid and paging boxes no
+  longer means a tap per step. A and B never repeat.
+- Box icons keep their own colours instead of taking the palette of whatever
+  map you happened to open the PC on.
+- The grid remembers your cursor. Leaving to the WITHDRAW / DEPOSIT menu and
+  coming back puts you back on the cell you left.
+- The stats strip shows three things the vanilla PC never did: the focused
+  Pokemon's types, its status condition, and a `*` when it is shiny.
 
 ## 0.8.0
 
-- Renamed to Bill's PC Plus (id `bills_pc_plus`), from Modern PC Boxes.
-  Anyone with the old version installed should remove the `modern_boxes`
-  folder: the ids differ, so the two would install side by side and both
-  claim the same screen.
+- Renamed to Bill's PC Plus (id `bills_pc_plus`), from Modern PC Boxes. If you
+  have the old version installed, remove the `modern_boxes` folder: the ids
+  differ, so the two install side by side and both claim the same screen.
 
 ## 0.7.0
 
-- Leaving the PC after moving anything now shows the save dialog -- the same
-  "Now saving..." and "saved the game!" pages the START menu's SAVE uses,
-  with the save jingle. The game is no longer written silently.
-- A visit where nothing moved still writes nothing, and shows no dialog.
+- Leaving the PC after moving anything shows the save dialog, jingle and all.
+  The game is no longer written silently.
+- A visit where nothing moved writes nothing, and shows no dialog.
 
 ## 0.6.1
 
-- The front sprite now sits 4px clear of the frame's inner floor instead of
-  flush against it, so it no longer looks like it is resting on the border.
+- The front sprite sits clear of the frame floor instead of resting on the
+  border.
 
 ## 0.6.0
 
-- Added a vertical divider between the box grid and the sprite panel, drawn
-  with the same border glyph as the frames.
-- The sprite panel narrows from 64px to 56px to make room for it. That is
-  exactly the width of a 7x7 sprite, the largest in Gen 1, so those now sit
-  flush between the divider and the frame; 5x5 and 6x6 sprites still centre
-  with margin.
+- A vertical divider separates the box grid from the sprite panel. The largest
+  Gen 1 sprites sit flush between it and the frame; smaller ones still centre.
 
 ## 0.5.2
 
-- Fixed the sprite and stats blanking out while moving a Pokemon. Picking
-  one up removes it from the box, and the panel was still reading the cell
-  under the cursor -- so it showed nothing, or, when another Pokemon had
-  compacted into that slot, showed the wrong one as though it had been
-  picked up instead. The panel now follows the Pokemon in hand.
+- The sprite and stats no longer blank out while you are moving a Pokemon. The
+  panel follows the one in your hand.
 
 ## 0.5.1
 
-- The cursor is now corner marks rather than a full square.
-- Fixed the cursor rendering as a colour instead of black. It was drawn with
-  a stroked rect on whole-pixel coordinates, which straddles pixel edges;
-  LOVE's default smooth line style left partial-coverage greys, and the
-  shade remap put those in a lighter shade than black, which the palette
-  then coloured. It is drawn with filled stubs now, like every other shape
-  on the Game Boy canvas.
+- The cursor is corner marks rather than a full square, and draws black instead
+  of picking up a colour from the palette.
 
 ## 0.5.0
 
-- Added a cursor indicator: a blinking outline on the selected cell, in the
-  grid and on the deposit-mode party row. Previously the only cue was the
-  selected Pokemon's icon animating, which showed nothing at all on an empty
-  slot -- the slot a carried Pokemon is usually headed for.
-- While carrying, the outline holds steady rather than blinking, marking the
-  drop target.
+- Added a cursor: a blinking outline on the selected cell, in the grid and on
+  the deposit party row. Before this the only cue was the selected Pokemon's
+  icon animating, which showed nothing at all on an empty slot.
+- The outline holds steady while you are carrying, marking the drop target.
 
 ## 0.4.0
 
-- The party row now has its own frame in deposit mode, drawn over the lower
-  part of the stats box. Deposit mode therefore shows three stat rows
-  instead of four; the SPD/SPC line is the one it gives up, and the rows
-  above it do not move.
-- Box mode is unchanged and keeps all four stat rows.
+- The party row has its own frame in deposit mode. Deposit shows three stat
+  rows instead of four; box mode keeps all four.
 
 ## 0.3.1
 
-- Fixed B in deposit mode switching the grid over to withdraw instead of
-  returning to the WITHDRAW / DEPOSIT menu. Both modes now leave the same
-  way. This was a leftover from the START-toggle design that 0.2.0 replaced.
+- Fixed B in deposit mode switching the grid to withdraw instead of returning
+  to the WITHDRAW / DEPOSIT menu. Both modes leave the same way now.
 
 ## 0.3.0
 
-- The screen is now framed by two stacked Game Boy boxes sharing a border
-  row, matching the original's chrome.
-- The sprite panel narrows from 80px to 64px to make room for the frame. A
-  56px sprite, the widest in Gen 1, still fits with 4px either side.
-- The party row moved below the stats strip, so the stats no longer shift
-  16px when deposit mode opens.
+- The screen is framed by two stacked Game Boy boxes sharing a border row,
+  matching the original's chrome.
+- The party row moved below the stats strip, so the stats no longer shift when
+  deposit mode opens.
 
 ## 0.2.0
 
-- Opening the PC now shows a WITHDRAW / DEPOSIT / SEE YA! menu, matching the
-  original's shape. Picking a row opens the grid in that mode, and B returns
-  to the menu, so switching between withdrawing and depositing no longer
-  depends on a hidden START toggle.
-- The START toggle is gone.
-- The menu owns every exit from the PC, so the save is written in one place
-  instead of two.
+- Opening the PC shows a WITHDRAW / DEPOSIT / SEE YA! menu, matching the
+  original's shape. Picking a row opens the grid in that mode and B returns to
+  the menu, replacing the hidden START toggle.
 
 ## 0.1.1
 
-- Fixed the box screen drawing transparently: the overworld map and the PC
-  main menu both showed through the grid, and the screen had no background.
-  The screen now declares itself opaque, which also restores the classic
-  white background.
+- Fixed the box screen drawing transparently, with the overworld map and the PC
+  menu showing through the grid.
 
 ## 0.1.0
 
 - Replaces the PC box screen with a 5x4 grid, a front-sprite panel and a
   condensed stats strip.
-- Changing box no longer forces a save. The game writes once on exit, and
-  only when something actually moved.
+- Changing box no longer forces a save. The game writes once on exit, and only
+  when something actually moved.
 - Pick up and drop to rearrange within a box or across boxes.
-- Deposit mode shows the party as a row, with left and right choosing the
-  mon and up and down choosing the destination box.
+- Deposit mode shows the party as a row: left and right choose the Pokemon, up
+  and down choose the destination box.
