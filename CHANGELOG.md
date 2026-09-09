@@ -7,6 +7,10 @@ what changed for the player, with the reasoning left in the commit history.
 
 - Empty slots in a box now show a small dot, so a half-full box reads as a box
   with gaps rather than a short one.
+
+  ![A box holding ten Pokemon, the empty slots between them each marked with a
+  single dot](images/detail_empty_slots.png)
+
 - The type line is labelled TY, matching the DV line under it.
 
 ## 0.13.0

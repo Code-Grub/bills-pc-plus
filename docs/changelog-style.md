@@ -42,6 +42,24 @@ After:
 The palette reasoning is not lost -- it is in the commit that made the change,
 and in the code comment beside the constant.
 
+## Screenshots
+
+An entry can carry a screenshot when the change is visual and hard to picture
+from a sentence -- a new mark, a redrawn icon, a layout that moved. Most
+entries do not need one, and a file where every entry has a picture is harder
+to skim than one where the pictures mean something.
+
+- Crop to the thing that changed, not the whole screen. A full 160x144 capture
+  makes the reader hunt for the difference.
+- Pin the crop to what that version looked like. Cropping a current screenshot
+  into an old entry can show features that did not exist yet -- the grid detail
+  under 0.14.0 stops at the header row for exactly that reason, since the
+  paging arrows above it arrived in 0.15.0.
+- Write real alt text saying what is in the shot, not "screenshot".
+- Relative paths are fine here: this file is read on the repo page. Check
+  before relying on them elsewhere -- a release workflow that pastes the
+  changelog into GitHub Releases will not render them.
+
 ## When entries are written
 
 Feature commits do not touch `CHANGELOG.md`. A separate `[release X.Y.Z]`
