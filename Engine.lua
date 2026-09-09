@@ -25,4 +25,67 @@ function Engine:summaryScreenId()
   return self.gen2 and "Gen2SummaryMenu" or "SummaryMenu"
 end
 
+local PartyMenu = require("src.ui.PartyMenu")
+local Sprites = require("src.pokemon.Sprites")
+local Assets = require("src.render.Assets")
+
+-- Gold's icon sheets are 16px wide with the two animation frames stacked
+-- vertically at a 16px pitch, which is how src/ui/gen2/PartyMenu.lua quads
+-- them (newQuad(0, frame * 16, ...)).
+local G2_ICON = 16
+
+-- Resolve a Gen 2 mon's icon image.  Gold keys per-species sheets off
+-- icons.species and stores the path at icons.icons[id].image, where Gen 1
+-- keys nine shared CLASS names and stores the path directly -- so this is a
+-- different lookup, not a different argument order.
+--
+-- The path goes out through Sprites.iconPath before loading, which is the
+-- one icon API both generations genuinely share: Gold's own iconFor makes
+-- the same call with the same ctx, precisely so a skin mod repaints icons in
+-- both games.  Skipping it would make this the one screen an icon pack
+-- cannot touch.
+function Engine:iconImageFor(game, mon)
+  local data = game and game.data
+  local icons = data and data.icons
+  if not (icons and mon and mon.species) then return nil end
+  local iconId = icons.species and icons.species[mon.species]
+  local entry = iconId and icons.icons and icons.icons[iconId]
+  local path = entry and entry.image
+  path = Sprites.iconPath(data, mon, path, { name = iconId })
+  if not path then return nil end
+  local cache = self._iconCache
+  if not cache then cache = {}; self._iconCache = cache end
+  local cached = cache[path]
+  if cached == nil then
+    local ok, img = pcall(Assets.image, path)
+    cached = ok and img or false
+    cache[path] = cached
+  end
+  if not cached then return nil end
+  return cached
+end
+
+-- Draw a mon's icon with its top-left at (x, y).
+--
+-- Gen 1 delegates rather than reimplementing: PartyMenu.drawIcon does an
+-- OBP0 bake for built-in icon classes but loads mod-supplied art untouched,
+-- and duplicating that split here would be a palette regression on art that
+-- already works.  selected=false and counter=0 are deliberate and carried
+-- over verbatim from the old call site -- with selected true, drawIcon reads
+-- mon.stats.hp to pick an animation speed from HP-bar colour, meaningless
+-- for a stored mon; forceAlt animates instead.
+function Engine:drawIcon(game, mon, x, y, animated)
+  if not self.gen2 then
+    PartyMenu.drawIcon(game, mon, x, y, false, 0, animated)
+    return
+  end
+  local image = self:iconImageFor(game, mon)
+  if not image then return end
+  local iw, ih = image:getDimensions()
+  local frame = animated and 1 or 0
+  local quad = love.graphics.newQuad(0, frame * G2_ICON,
+    G2_ICON, G2_ICON, iw, ih)
+  love.graphics.draw(image, quad, x, y)
+end
+
 return Engine

@@ -66,4 +66,42 @@ T.check(gen2Grid and gen2Grid.engine,
 T.eq(gen2Grid.engine:summaryScreenId(), "Gen2SummaryMenu",
   "Gold's, so STATS there opens Gold's summary")
 
+-- Gen 1 delegates to the engine's own drawIcon, unchanged, so Red/Blue/Yellow
+-- keep today's output exactly -- including the OBP0 bake for built-in icon
+-- classes, which only that path knows how to do.
+do
+  local PartyMenu = require("src.ui.PartyMenu")
+  local realDraw = PartyMenu.drawIcon
+  local seen
+  PartyMenu.drawIcon = function(g, mon, x, y, selected, counter, forceAlt)
+    seen = { g = g, mon = mon, x = x, y = y,
+             selected = selected, counter = counter, forceAlt = forceAlt }
+  end
+
+  local fakeGame = { data = Data }
+  local fakeMon = { species = "PIKACHU" }
+  Engine.new(false):drawIcon(fakeGame, fakeMon, 24, 40, true)
+
+  PartyMenu.drawIcon = realDraw
+
+  T.check(seen, "the Gen 1 path still goes through PartyMenu.drawIcon")
+  T.eq(seen and seen.x, 24, "at the x it was given")
+  T.eq(seen and seen.y, 40, "and the y")
+  T.eq(seen and seen.selected, false,
+    "selected stays false: a stored mon has no meaningful HP-bar animation")
+  T.eq(seen and seen.counter, 0, "counter stays 0 for the same reason")
+  T.eq(seen and seen.forceAlt, true, "animation rides forceAlt instead")
+end
+
+-- Gen 2 resolves its own icon: per-species two-frame sheets keyed on
+-- icons.species, not Gen 1's nine shared classes, and no PartyMenu instance
+-- to borrow.  A species the table does not know draws nothing rather than
+-- raising.
+do
+  local e = Engine.new(true)
+  local unknown = e:iconImageFor({ data = { icons = { species = {}, icons = {} } } },
+    { species = "NOSUCHMON" })
+  T.eq(unknown, nil, "an unknown species resolves to no image, and does not raise")
+end
+
 T.finish("bills_pc_plus gen2")

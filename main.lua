@@ -162,7 +162,7 @@ return function(mod)
   -- which is meaningless for a stored mon.  forceAlt animates instead.
   local function drawIconClamped(self, mon, x, y, animated)
     love.graphics.setScissor(x, y, Layout.CELL, Layout.CELL)
-    PartyMenu.drawIcon(self.game, mon, x, y, false, 0, animated)
+    self.engine:drawIcon(self.game, mon, x, y, animated)
     love.graphics.setScissor()
   end
 
@@ -271,7 +271,7 @@ return function(mod)
       local mon = box[i]
       local x, y = Layout.slotXY(i)
       if mon then
-        PartyMenu.drawIcon(self.game, mon, x + dx, y + dy, false, 0, false)
+        self.engine:drawIcon(self.game, mon, x + dx, y + dy, false)
       else
         drawEmptySlot(x + dx, y + dy)
       end
@@ -861,6 +861,7 @@ return function(mod)
   -- a deposit in the same PC visit accumulate into a single dirty flag and
   -- a single write on the way out.
   local function newGrid(game, session, mode, engine)
+    assert(engine, "newGrid needs a seam")
     -- The cursor comes from the session, where Screen:update kept it, so a
     -- grid reopened from the menu resumes where the last one stood.
     -- partyCursor clamps to the party actually there: deposits shrink it
