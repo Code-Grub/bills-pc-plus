@@ -106,6 +106,36 @@ T.check(left56 + 56 <= IN_R, "a 56px sprite stays inside the frame")
 
 -- stats sit at a fixed place in both modes; the party row goes below them
 T.eq(L.STATS_X, IN_L, "stats start one tile in")
+
+-- The stats strip is a four-column table: a header row naming the stats,
+-- then values and DVs aligned beneath it.  Columns are fields the caller
+-- right-aligns into, so a proportional font pack cannot pull them out of
+-- line the way space padding would.
+T.eq(#L.STATS_COLS, 4, "four stat columns, one per stat")
+for i = 2, #L.STATS_COLS do
+  T.eq(L.STATS_COLS[i] - L.STATS_COLS[i - 1], L.STATS_COL_W + 8,
+    "columns are evenly pitched, a field plus a glyph of air")
+end
+T.eq(L.STATS_COLS[1], L.STATS_X + 16,
+  "the first column clears the label gutter, which is exactly wide enough for DV")
+local lastRight = L.STATS_COLS[#L.STATS_COLS] + L.STATS_COL_W
+T.eq(lastRight, IN_R - 8,
+  "the last column stops a glyph short of the frame, not flush against it")
+-- 144 is where the old two-column layout's DEF and SPC ended, so the table
+-- keeps the right margin the strip already had.  Pinned because running the
+-- columns out to 152 fits, looks tidy in the arithmetic, and reads as
+-- cramped on screen -- the same way the labeled type line did.
+T.eq(lastRight, 144, "which is the margin the previous layout used")
+T.eq(L.STATS_COL_W, 24, "a field is three glyphs, which SPC and a 3-digit stat both fill")
+
+-- Box B's interior is five rows and the strip spends all five: three rows
+-- of table, a blank one, then the type line on the floor row.  The blank
+-- row is the whole point of the fifth -- the types are not a fourth line
+-- of the stat table and should not read as one -- so the strip has no
+-- slack left, and any new row has to come out of the gap or the frame.
+T.eq(L.STATS_Y + 4 * L.ROW, 128, "the type row sits on the fifth row, at 128")
+T.eq(L.STATS_Y + 5 * L.ROW, B_BOT,
+  "which ends flush on box B's interior floor, the last row that fits")
 T.eq(L.STATS_Y, B_TOP, "stats start at box B's interior top")
 T.eq(L.STATS_Y + 3 * L.ROW, 120, "three stat rows end at y=120")
 T.eq(L.PARTY_X, IN_L, "the party row starts one tile in")

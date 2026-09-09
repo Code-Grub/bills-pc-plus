@@ -416,6 +416,22 @@ return function(mod)
     love.graphics.setScissor()
   end
 
+  -- The four stats the strip tabulates, header text and save key in the same
+  -- order so one loop fills a column with both.  HP is not among them: it
+  -- reads on the count line under the sprite, where a "100/100" needs the
+  -- panel's whole width.
+  local STAT_HEADERS = { "ATK", "DEF", "SPD", "SPC" }
+  local STAT_KEYS = { "attack", "defense", "speed", "special" }
+
+  -- Right-align text into column i's field.  Measured with Font.width, not
+  -- #text * 8: a TTF font pack answers with its own advances (5px base), so
+  -- byte length would drift the columns apart under any pack but the
+  -- built-in tiles.
+  local function drawCell(text, i, y)
+    local right = Layout.STATS_COLS[i] + Layout.STATS_COL_W
+    Font.draw(text, right - Font.width(text), y)
+  end
+
   local function drawStats(self)
     local mon = self:focused()
     local row = Layout.ROW
@@ -447,14 +463,14 @@ return function(mod)
     if stats then
       local hpText = ("%d/%d"):format(mon.hp or 0, stats.hp or 0)
       Font.draw(hpText, 124 - #hpText * 4, Layout.COUNT_Y)
-      Font.draw(("ATK %3d"):format(stats.attack or 0),
-                Layout.STATS_X, Layout.STATS_Y)
-      Font.draw(("DEF %3d"):format(stats.defense or 0),
-                Layout.STATS_X + 80, Layout.STATS_Y)
-      Font.draw(("SPD %3d"):format(stats.speed or 0),
-                Layout.STATS_X, Layout.STATS_Y + row)
-      Font.draw(("SPC %3d"):format(stats.special or 0),
-                Layout.STATS_X + 80, Layout.STATS_Y + row)
+      -- Header row, then values under it.  Every cell is right-aligned into
+      -- its field rather than space-padded into position: Font is
+      -- proportional under a TTF font pack, so "%3d" would land the columns
+      -- wherever that pack's space happens to measure (Layout.STATS_COLS).
+      for i, name in ipairs(STAT_HEADERS) do
+        drawCell(name, i, Layout.STATS_Y)
+        drawCell(tostring(stats[STAT_KEYS[i]] or 0), i, Layout.STATS_Y + row)
+      end
     end
     -- The type line sits under SPD/SPC, and the DV spread under that -- both
     -- are box view's bonus rows: deposit mode's party frame (box C) covers
@@ -466,13 +482,38 @@ return function(mod)
     -- player can switch off, so it checks showDVs while the type line above
     -- it does not.
     --
-    -- The type line now carries a TY label matching DV's own two-letter
-    -- one, so the bottom two rows read as a labeled pair instead of DV
-    -- being the only row with one.  Three characters ("TY " / "DV ") is
-    -- the most either can spend: ZAPDOS is ELECTRIC/FLYING, 15 glyphs, and
-    -- the strip is 18 glyphs wide (144px) -- a four-character label like
-    -- ATK/DEF/SPD/SPC carry would push that one line past the frame.
+    -- Only the DV row is labeled.  The header names the values above it, and
+    -- a type name is unmistakably a type, so a label on either would be
+    -- ceremony -- while the DVs, a second row of numbers under the first,
+    -- are the one row that has to say what it is.  Dropping "TY " also gave
+    -- the type line back three glyphs: ZAPDOS is ELECTRIC/FLYING at 15, and
+    -- the labeled form made 18, exactly the strip's width, so that one real
+    -- case ran wall to wall while every other row had air on the right.
+    --
+    -- Each DV lands in its own stat's column, which is what makes the row
+    -- self-labeling: the 15 sits under ATK.
+    --
+    -- The type line then skips a row and lands on the strip's last one.
+    -- With the "TY " label gone, nothing but position tells the reader that
+    -- a type is a different kind of fact from the three rows of numbers
+    -- above it -- run flush under the DVs it reads as a fourth line of the
+    -- same table.  The blank row is what separates them, and it is the
+    -- spare row box B always had.
     if self.mode ~= "deposit" then
+      local typeY = Layout.STATS_Y + row * 4
+      if showDVs() then
+        local dvs = mon.dvs or {}
+        Font.draw("DV", Layout.STATS_X, Layout.STATS_Y + row * 2)
+        for i, key in ipairs(STAT_KEYS) do
+          drawCell(tostring(dvs[key] or 0), i, Layout.STATS_Y + row * 2)
+        end
+      else
+        -- With the DVs hidden the type line rises one row, keeping its
+        -- blank row rather than leaving a two-row hole mid-strip.  Nothing
+        -- above it moves, which is what the option promised, and the gap
+        -- travels with the line it belongs to.
+        typeY = Layout.STATS_Y + row * 3
+      end
       local def = self.session.data.pokemon[mon.species]
       local t = def and def.types
       if t and t[1] then
@@ -480,13 +521,7 @@ return function(mod)
         if t[2] then
           line = line .. "/" .. TypeChart.displayName(t[2])
         end
-        Font.draw("TY " .. line, Layout.STATS_X, Layout.STATS_Y + row * 2)
-      end
-      if showDVs() then
-        local dvs = mon.dvs or {}
-        Font.draw(("DV %d/%d/%d/%d"):format(dvs.attack or 0, dvs.defense or 0,
-          dvs.speed or 0, dvs.special or 0),
-          Layout.STATS_X, Layout.STATS_Y + row * 3)
+        Font.draw(line, Layout.STATS_X, typeY)
       end
     end
   end

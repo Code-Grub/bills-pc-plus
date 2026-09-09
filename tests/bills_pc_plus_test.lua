@@ -1063,15 +1063,70 @@ local function drew(t)
   end
   return nil
 end
-T.check(drew("TY NORMAL/FLYING") ~= nil, "both types print on one slash-joined line, labeled")
-T.check(drew("DV 15/10/10/10") ~= nil, "the DV spread prints for the focused mon, labeled")
+local function drewAt(t, y)
+  for _, d in ipairs(texts) do
+    if d.text == t and d.y == y then return d end
+  end
+  return nil
+end
+-- The strip is a table: a header row naming the stats, the values under it,
+-- the DVs under those, and the types on their own row.  Only DV carries a
+-- label -- the header names the values row, and a type name is unmistakably
+-- a type -- so the gutter at STATS_X is empty on the two number rows above.
+local hdrY = L.STATS_Y
+for i, name in ipairs({ "ATK", "DEF", "SPD", "SPC" }) do
+  local d = drewAt(name, hdrY)
+  T.check(d ~= nil, name .. " names its column in the header row")
+  if d then
+    T.eq(d.x + Font.width(name), L.STATS_COLS[i] + L.STATS_COL_W,
+      name .. " is right-aligned in its column")
+  end
+end
+T.check(drewAt("DV", L.STATS_Y + 2 * L.ROW) ~= nil, "the DV row keeps its label")
+T.eq(drewAt("DV", L.STATS_Y + 2 * L.ROW).x, L.STATS_X, "in the gutter, at the strip's left edge")
+for _, y in ipairs({ L.STATS_Y, L.STATS_Y + L.ROW }) do
+  for _, d in ipairs(texts) do
+    if d.y == y then
+      T.check(d.x >= L.STATS_COLS[1],
+        "nothing draws in the gutter on the header or values rows")
+    end
+  end
+end
+-- The type line takes the strip's last row, one blank row clear of the
+-- numbers above it.  Types are a different kind of fact from the stat
+-- table -- not a column in it -- and with no label left to say so, the gap
+-- is what separates them.
+T.check(drewAt("NORMAL/FLYING", L.STATS_Y + 4 * L.ROW) ~= nil,
+  "both types print on one slash-joined line, unlabeled now")
+T.eq(drewAt("NORMAL/FLYING", L.STATS_Y + 4 * L.ROW).x, L.STATS_X,
+  "the type row starts at the strip's left edge, the label gone")
+do
+  local gapY = L.STATS_Y + 3 * L.ROW
+  for _, d in ipairs(texts) do
+    T.check(d.y ~= gapY, "the row under the DVs stays empty, holding the gap")
+  end
+end
 T.eq(#marks, 3, "a shiny DV spread draws the three-stroke diamond mark")
 
+-- Each DV sits in its own stat's column rather than in one slash-joined
+-- run, which is what makes the row self-labeling: 15 under ATK.
+for i, want in ipairs({ "15", "10", "10", "10" }) do
+  local found
+  for _, d in ipairs(texts) do
+    if d.y == L.STATS_Y + 2 * L.ROW and d.text == want
+       and d.x + Font.width(want) == L.STATS_COLS[i] + L.STATS_COL_W then
+      found = d
+    end
+  end
+  T.check(found ~= nil, "DV " .. i .. " is right-aligned under its own stat")
+end
+
 -- ZAPDOS (ELECTRIC/FLYING) is the longest type combo among all 151 Gen1
--- species -- 15 glyphs, and "TY " makes 18, exactly the strip's 144px
--- width (Layout.lua: box A's interior spans x=8..152).  A wider label
--- here, TYPE for instance, would push this one real case past the frame;
--- pinned so a future label change cannot reintroduce that quietly.
+-- species -- 15 glyphs.  With a "TY " label it made 18, exactly the strip's
+-- 144px width (Layout.lua: box A's interior spans x=8..152), so it ran wall
+-- to wall while every other row had air on the right.  The header row names
+-- the columns now, which is what let the label go; pinned so a future label
+-- cannot quietly put this one real case back against the frame.
 local origTypes = Data.pokemon.FIXMON_A.types
 Data.pokemon.FIXMON_A.types = { "ELECTRIC", "FLYING" }
 texts = {}
@@ -1082,11 +1137,15 @@ end
 stripGrid:draw()
 Font.draw = realDraw
 Data.pokemon.FIXMON_A.types = origTypes
-local longType = drew("TY ELECTRIC/FLYING")
+local longType = drew("ELECTRIC/FLYING")
 T.check(longType ~= nil, "the longest real type combo (Zapdos) prints in full, not truncated")
 if longType then
-  T.check(Font.width("TY ELECTRIC/FLYING") <= 144,
+  T.check(Font.width("ELECTRIC/FLYING") <= 144,
     "and fits inside the strip's 144px width")
+  -- Dropping the label bought three glyphs: the combo used to fill all 18
+  -- and touch both frame walls.
+  T.check(Font.width("ELECTRIC/FLYING") <= 144 - 16,
+    "with room to spare, so it no longer runs wall to wall")
 end
 
 -- the identity moved up to the panel: name over level above the sprite,
@@ -1138,7 +1197,7 @@ end
 stripGrid:draw()
 Font.draw = realDraw
 gfx.rectangle = realRect
-T.check(drew("TY NORMAL/FLYING") ~= nil, "types still print for a plain mon")
+T.check(drew("NORMAL/FLYING") ~= nil, "types still print for a plain mon")
 T.eq(#marks, 0, "no shiny mark without the DV spread")
 
 -- ------- the identity plate measures glyphs, not bytes
@@ -1213,7 +1272,7 @@ Font.draw = function(text, x, ty)
 end
 depStrip:draw()
 Font.draw = realDraw
-T.check(drew("TY NORMAL/FLYING") == nil, "deposit mode hides the type line under box C")
+T.check(drew("NORMAL/FLYING") == nil, "deposit mode hides the type line under box C")
 
 -- ------- the screen declares its own palette zones
 -- Without sgbPalettes the grid inherits the overworld's map palette through
@@ -1331,12 +1390,15 @@ do
 
   -- one pass returns all three things the toggle touches or must not touch
   local function drawOnce()
+    -- types holds the y it drew on rather than a flag: a number is truthy,
+    -- so the plain checks below still read, and the file is at LuaJIT's
+    -- 200-local ceiling -- a separate typeY would not fit.
     local dv, types, marks = false, false, 0
     local rd, rr = Font.draw, gfx.rectangle
     Font.draw = function(text, x, ty)
       local s = tostring(text)
-      if s == "DV 15/10/10/10" then dv = true
-      elseif s == "TY NORMAL/FLYING" then types = true end
+      if s == "DV" then dv = true
+      elseif s == "NORMAL/FLYING" then types = ty end
       return rd(text, x, ty)
     end
     gfx.rectangle = function(mode, x, y2, w, h)
@@ -1354,11 +1416,20 @@ do
   run.loader.modOptions.bills_pc_plus = nil
   local dv, types, marks = drawOnce()
   T.check(dv, "with nothing stored the DV line draws: the schema default is ON")
+  T.eq(types, L.STATS_Y + 4 * L.ROW,
+    "and the type line sits on the last row, a blank one between them")
 
   run.loader.modOptions.bills_pc_plus = { dv_display = false }
   dv, types, marks = drawOnce()
   T.eq(dv, false, "with the option off the DV line does not draw")
-  T.check(types, "the type line above it is untouched")
+  T.check(types, "the type line below it is untouched")
+  -- The DV row is in the middle of the table now, not the last line, so
+  -- hiding it would leave a two-row hole between the values and the types.
+  -- The type line closes up instead, keeping its one blank row of
+  -- separation; nothing above it moves, which is all the option ever
+  -- promised.
+  T.eq(types, L.STATS_Y + 3 * L.ROW,
+    "the type line rises with it, keeping one blank row, not a hole")
   T.eq(marks, 3,
     "and the shiny mark still draws: the toggle hides the numbers, not shininess")
 

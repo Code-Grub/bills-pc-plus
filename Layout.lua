@@ -82,9 +82,40 @@ Layout.PARTY_SLOTS = 6
 -- the left, the focused mon's HP on the right (under the sprite).
 Layout.COUNT_Y = 80
 
--- The stats strip inside box B: ATK/DEF, then SPD/SPC, then the type line
--- (box view only -- deposit's party frame covers it).
+-- The stats strip inside box B, a four-column table: a header row naming
+-- the stats, the values under it, and the DVs under those (the DV row is
+-- box view only -- deposit's party frame covers it).  Box B's interior is
+-- five rows; the table takes three, then a blank row, then the type line
+-- on the floor row, box view only for the same reason.
+--
+-- The types sit apart because they are not a fourth line of the table --
+-- one word where every row above is four numbers, and since the "TY "
+-- label came off, position is the only thing left to say so.  That spends
+-- box B's spare row, so the strip has no slack: a new row has to come out
+-- of the gap or out of the frame.
+--
+-- STATS_X is the label gutter, three glyphs wide, holding DV and the type
+-- line.  The header and values rows leave it empty: the header names the
+-- values, so only the second row of numbers needs telling apart.
 Layout.STATS_X, Layout.STATS_Y = 8, 96
+
+-- Column fields, 24px (three glyphs -- what SPC and a three-digit stat each
+-- need), pitched 32px so a glyph of air separates them.  The last ends at
+-- 120 + 24 = 144, a glyph short of box B's interior edge at 152.
+--
+-- That last glyph is deliberate.  The columns fit flush to 152, but text
+-- hard against the frame is what made the old labeled type line look
+-- cramped, and 144 is exactly where the previous layout's DEF and SPC
+-- columns ended -- so this keeps the right margin the strip already had
+-- rather than inventing a tighter one.  The gutter takes the other 8px:
+-- x=8..24 is precisely "DV".
+--
+-- These are fields callers right-align INTO, not text origins: Font is
+-- proportional under a TTF font pack (Font.advanceOf), where a 5px glyph
+-- makes "%3d" space padding land columns wherever the spaces happen to
+-- measure.  Right-aligning with Font.width holds the table under any pack.
+Layout.STATS_COLS = { 24, 56, 88, 120 }
+Layout.STATS_COL_W = 24
 
 function Layout.slotXY(index)
   local i = index - 1
