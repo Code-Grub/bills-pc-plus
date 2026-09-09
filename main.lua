@@ -36,7 +36,8 @@ return function(mod)
 
   local BoxSession = sibling("BoxSession.lua")
   local Layout = sibling("Layout.lua")
-  if not (BoxSession and Layout) then return end
+  local Engine = sibling("Engine.lua")
+  if not (BoxSession and Layout and Engine) then return end
 
   -- The same file manifest.options_schema names, so the manager's auto-UI
   -- and the running mod read one list of rows.  Unlike the two modules
@@ -542,7 +543,7 @@ return function(mod)
           if not ok then self:say(reason) end
         end },
       { label = "STATS", keepOpen = true, onSelect = function()
-          mod.ui.push(self.game, "SummaryMenu", mon)
+          mod.ui.push(self.game, self.engine:summaryScreenId(), mon)
         end },
       { label = "RELEASE", onSelect = function()
           self.game.stack:push(mod.ui.TextBox.new(self.game,
@@ -859,7 +860,7 @@ return function(mod)
   -- mode that row names.  Both rows share one session, so a withdrawal and
   -- a deposit in the same PC visit accumulate into a single dirty flag and
   -- a single write on the way out.
-  local function newGrid(game, session, mode)
+  local function newGrid(game, session, mode, engine)
     -- The cursor comes from the session, where Screen:update kept it, so a
     -- grid reopened from the menu resumes where the last one stood.
     -- partyCursor clamps to the party actually there: deposits shrink it
@@ -871,6 +872,7 @@ return function(mod)
     return setmetatable({
       game = game,
       session = session,
+      engine = engine,
       cursor = session.cursor or 1,
       partyCursor = partyCursor,
       mode = mode,
@@ -930,55 +932,63 @@ return function(mod)
   -- grid then pops back here for free, and that is how the player switches
   -- between the two modes.  Because the menu outlives the grid it is also
   -- where the session is reconciled -- via SEE YA! or by backing out.
-  mod.content.screens:register("BoxMenu", {
-    new = function(game)
-      local session = BoxSession.new(game)
-      live = session -- the wrapper above refuses saves for this one
-      -- A visit can be abandoned without exit ever running (a soft reset
-      -- pops the whole stack), and a deferral left over from one must not
-      -- fire on the next visit's way out, for a save nobody asked this
-      -- session to make.
-      pendingSave = false
-      -- Leaving reconciles and stops.  The PC used to announce a write
-      -- here because it performed one; it performs none now, so there is
-      -- nothing to announce and a visit that moved six mons closes exactly
-      -- like one that moved none.  What the player did rides along with the
-      -- next save the game itself makes -- START menu SAVE, the cable club,
-      -- the Hall of Fame -- and the wrapper above keeps that write honest
-      -- whenever it lands.
-      local function exit()
-        session:commit()
-        live = nil
-        -- Ordered: live has to be nil before the replay, or the wrapper
-        -- above would refuse the very write it is honouring.  commit ran
-        -- first, so the boxes the replay captures are the reconciled ones.
-        -- Replaying goes through the whole save.write chain again, so a
-        -- veto further down still decides -- it just decides out here,
-        -- where the PC is no longer in the way.
-        if pendingSave then
-          pendingSave = false
-          if game.writeSave then game:writeSave() end
+  local function boxMenuFactory(engine)
+    return {
+      new = function(game)
+        local session = BoxSession.new(game)
+        live = session -- the wrapper above refuses saves for this one
+        -- A visit can be abandoned without exit ever running (a soft reset
+        -- pops the whole stack), and a deferral left over from one must not
+        -- fire on the next visit's way out, for a save nobody asked this
+        -- session to make.
+        pendingSave = false
+        -- Leaving reconciles and stops.  The PC used to announce a write
+        -- here because it performed one; it performs none now, so there is
+        -- nothing to announce and a visit that moved six mons closes exactly
+        -- like one that moved none.  What the player did rides along with the
+        -- next save the game itself makes -- START menu SAVE, the cable club,
+        -- the Hall of Fame -- and the wrapper above keeps that write honest
+        -- whenever it lands.
+        local function exit()
+          session:commit()
+          live = nil
+          -- Ordered: live has to be nil before the replay, or the wrapper
+          -- above would refuse the very write it is honouring.  commit ran
+          -- first, so the boxes the replay captures are the reconciled ones.
+          -- Replaying goes through the whole save.write chain again, so a
+          -- veto further down still decides -- it just decides out here,
+          -- where the PC is no longer in the way.
+          if pendingSave then
+            pendingSave = false
+            if game.writeSave then game:writeSave() end
+          end
         end
-      end
 
-      local menu = mod.ui.Menu.new(game, {
-        { label = "WITHDRAW POKéMON", keepOpen = true, onSelect = function()
-            game.stack:push(newGrid(game, session, "box"))
-          end },
-        { label = "DEPOSIT POKéMON", keepOpen = true, onSelect = function()
-            game.stack:push(newGrid(game, session, "deposit"))
-          end },
-        { label = "SEE YA!", onSelect = exit },
-      }, {
-        tx = 0, ty = 0, th = 8,
-        -- Bill's PC runs silent end to end (BIT_NO_MENU_BUTTON_SOUND,
-        -- engine/menus/pokemon_pc.asm)
-        noSound = true,
-        onCancel = exit,
-      })
-      -- the session outlives each grid push, so expose it on the menu
-      menu.session = session
-      return menu
-    end,
-  })
+        local menu = mod.ui.Menu.new(game, {
+          { label = "WITHDRAW POKéMON", keepOpen = true, onSelect = function()
+              game.stack:push(newGrid(game, session, "box", engine))
+            end },
+          { label = "DEPOSIT POKéMON", keepOpen = true, onSelect = function()
+              game.stack:push(newGrid(game, session, "deposit", engine))
+            end },
+          { label = "SEE YA!", onSelect = exit },
+        }, {
+          tx = 0, ty = 0, th = 8,
+          -- Bill's PC runs silent end to end (BIT_NO_MENU_BUTTON_SOUND,
+          -- engine/menus/pokemon_pc.asm)
+          noSound = true,
+          onCancel = exit,
+        })
+        -- the session outlives each grid push, so expose it on the menu
+        menu.session = session
+        return menu
+      end,
+    }
+  end
+
+  -- Both ids, unconditionally.  Each is inert on the other generation: Gen 1
+  -- never builds Gen2BoxMenu and Gold never builds BoxMenu, so one package
+  -- claims the PC on either engine without asking which one it is on.
+  mod.content.screens:register("BoxMenu", boxMenuFactory(Engine.new(false)))
+  mod.content.screens:register("Gen2BoxMenu", boxMenuFactory(Engine.new(true)))
 end
