@@ -552,4 +552,126 @@ do
   end
 end
 
+-- ------- clip/unclip map the scissor rect through the LIVE transform
+--
+-- This is the branch's riskiest change and it had no coverage at all.
+-- love.graphics.setScissor takes WINDOW pixels and ignores the transform, so
+-- the raw rect this replaced clipped a 16x16 patch of the top-left of the
+-- window while the cell it meant to clip was somewhere else entirely --
+-- which is why the whole Gen 2 grid drew nothing.
+--
+-- tests/love_stub.lua has setScissor = noop, getScissor returning nil, and
+-- neither transformPoint nor intersectScissor, so under the shared stub both
+-- branches take the identity fallback: reverting clip to a raw setScissor
+-- would leave the suite green and re-break Gen 2 exactly as before.  The
+-- stub is shared with the Gen 1 suites and is not the place to fix that, so
+-- this swaps love.graphics for a local recorder around a real draw -- the
+-- same monkeypatch-around-a-captured-draw shape the type-line case uses.
+--
+-- The assertion is coordinate-free on purpose: the same screen is drawn
+-- twice, once with no transformPoint (the identity fallback) and once with a
+-- translate+scale, and every rect from the second run has to be the first
+-- run's rect put through that same transform.  A raw setScissor would
+-- produce two identical runs and fail here.
+do
+  local realG = love.graphics
+  local game = {
+    data = Data,
+    save = { party = {}, currentBox = 1, boxes = { {
+      { species = "FIXMON_A", level = 12, hp = 20, dvs = {}, statExp = {},
+        moves = {},
+        stats = { hp = 20, attack = 12, defense = 12,
+                  speed = 12, special = 12 } },
+    } } },
+    input = { wasPressed = function() return false end,
+              isDown = function() return false end },
+  }
+  local screen
+  game.stack = { push = function(_, st) screen = st end, pop = function() end }
+  local menu = Screens.get(game, "Gen2BoxMenu").new(game)
+  for _, item in ipairs(menu.items) do
+    if item.label == "WITHDRAW POKéMON" then item.onSelect() end
+  end
+  screen.counter = 0
+
+  local function recordRects(transformPoint, withIntersect)
+    local rects, cleared = {}, 0
+    local shim = setmetatable({
+      getScissor = function() return nil end,
+      setScissor = function(x, y, w, h)
+        if x == nil then cleared = cleared + 1 return end
+        rects[#rects + 1] = { x, y, w, h, via = "set" }
+      end,
+    }, { __index = realG })
+    shim.transformPoint = transformPoint
+    if withIntersect then
+      shim.intersectScissor = function(x, y, w, h)
+        rects[#rects + 1] = { x, y, w, h, via = "intersect" }
+      end
+    end
+    love.graphics = shim
+    local ok, err = pcall(screen.draw, screen)
+    love.graphics = realG
+    if not ok then error(err, 0) end
+    return rects, cleared
+  end
+
+  local SCALE, TX, TY = 3, 40, 24
+  local function scaled(x, y) return x * SCALE + TX, y * SCALE + TY end
+
+  local raw, cleared = recordRects(nil, true)
+  local mapped = recordRects(scaled, true)
+
+  T.check(#raw > 0, "the box screen clips at least one rect while it draws")
+  T.eq(#mapped, #raw, "and the same number of them under a live transform")
+  T.check(cleared > 0,
+    "unclip restores the rect that was there before, once per clip")
+
+  local straight = true
+  for _, r in ipairs(raw) do
+    if r.via ~= "intersect" then straight = false end
+  end
+  T.check(straight,
+    "through intersectScissor, so a clip the engine set around us still holds")
+
+  local miss
+  for i = 1, #raw do
+    local r, m = raw[i], mapped[i]
+    local ex, ey = scaled(r[1], r[2])
+    if not (m[1] == ex and m[2] == ey
+            and m[3] == r[3] * SCALE and m[4] == r[4] * SCALE) then
+      miss = miss or string.format(
+        "rect %d: %d,%d %dx%d became %d,%d %dx%d, wanted %d,%d %dx%d",
+        i, r[1], r[2], r[3], r[4], m[1], m[2], m[3], m[4],
+        ex, ey, r[3] * SCALE, r[4] * SCALE)
+    end
+  end
+  T.check(miss == nil, miss and ("a rect missed the transform -- " .. miss)
+    or "every rect is translated and scaled by the live transform")
+
+  -- The other half of the same claim: under an identity transform the rect
+  -- comes back exactly as it went in, which is what keeps the Gen 1 picture
+  -- byte-identical while this runs on both generations.
+  local ident = recordRects(function(x, y) return x, y end, true)
+  local unchanged = #ident == #raw
+  for i = 1, math.min(#ident, #raw) do
+    local a, b = raw[i], ident[i]
+    if not (a[1] == b[1] and a[2] == b[2]
+            and a[3] == b[3] and a[4] == b[4]) then
+      unchanged = false
+    end
+  end
+  T.check(unchanged, "an identity transform hands every rect back unchanged")
+
+  -- A runtime without intersectScissor still gets a MAPPED rect, just set
+  -- rather than intersected.
+  local viaSet = recordRects(scaled, false)
+  local wantX, wantY = scaled(raw[1][1], raw[1][2])
+  T.eq(#viaSet, #raw, "the setScissor fallback clips the same rects")
+  T.eq(viaSet[1] and viaSet[1].via, "set", "through setScissor")
+  T.eq(viaSet[1] and viaSet[1][1], wantX,
+    "and mapped through the transform just the same")
+  T.eq(viaSet[1] and viaSet[1][2], wantY, "on both axes")
+end
+
 T.finish("bills_pc_plus gen2")
