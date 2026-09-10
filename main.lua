@@ -204,10 +204,17 @@ return function(mod)
     end
   end
 
-  -- A built-in icon draws exactly 16x16, but a mod-supplied image draws
-  -- whole, at whatever size the file is (src/ui/PartyMenu.lua:240-242), so
-  -- an icon pack shipping 32x32 art would bleed over its neighbours.
-  -- Scissor each cell rather than trusting the source.
+  -- The clamp is for the Gen 1 arm.  A built-in icon draws exactly 16x16,
+  -- but src/ui/PartyMenu.lua:240-242 draws a mod-supplied image WHOLE, at
+  -- whatever size the file is, so an icon pack shipping 32x32 art would
+  -- bleed over its neighbours.  Scissor each cell rather than trusting the
+  -- source.
+  --
+  -- The Gen 2 arm needs no clamp: it quads its own source to exactly
+  -- G2_ICON x G2_ICON, so oversized art is cropped before it is drawn
+  -- rather than clipped afterwards.  The scissor is harmless there and
+  -- stays unconditional -- a branch to skip it would only mean the same
+  -- rect never gets exercised on the generation that just needed it fixed.
   --
   -- selected=false on purpose: with it true, drawIcon reads mon.stats.hp
   -- (PartyMenu.lua:211) to pick an animation speed from HP bar colour,
