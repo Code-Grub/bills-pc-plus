@@ -104,12 +104,24 @@ local function firstFree(sparse)
   return nil
 end
 
-function BoxSession.new(game)
+-- engine is the per-generation seam (Engine.lua).  boxMenuFactory always
+-- passes one and asserts it there, because a Gen 2 session built without a
+-- seam is exactly the bug the parameter exists to prevent.  A nil seam is
+-- still tolerated here rather than asserted, because a nil one can only be
+-- a direct construction off the module -- tests/box_session_test.lua builds
+-- sessions with no mod loaded and so nothing to build a seam from -- and
+-- those are Gen 1 by definition.  See :deposit for what a seamless session
+-- falls back to.
+function BoxSession.new(game, engine)
+  assert(engine == nil or (type(engine) == "table"
+    and type(engine.modifyHappiness) == "function"),
+    "BoxSession's seam needs modifyHappiness")
   Boxes.ensure(game.save)
   local self = setmetatable({
     game = game,
     save = game.save,
     data = game.data,
+    engine = engine,
     carry = nil,
     dirty = false,
   }, BoxSession)
@@ -287,9 +299,18 @@ function BoxSession:deposit(partySlot, boxNum)
   if not slot then return false, "box_full" end
   s[slot] = mon
   table.remove(self.save.party, partySlot)
-  -- PIKAHAPPY_DEPOSITED (engine/pokemon/bills_pc.asm:247)
-  require("src.world.PikachuFollower")
-    .modifyHappiness(self.save, "DEPOSITED", mon)
+  -- PIKAHAPPY_DEPOSITED (engine/pokemon/bills_pc.asm:247), through the
+  -- seam: Gold's happiness enum has no storage event, and the direct call
+  -- this replaced read nil on Gold and raised -- one line after
+  -- table.remove, so the deposit died with the mon in neither place.
+  -- A seamless session is a direct construction and so Gen 1, where the
+  -- seam's own Gen 1 arm makes this same call.
+  if self.engine then
+    self.engine:modifyHappiness(self.save, "DEPOSITED", mon)
+  else
+    require("src.world.PikachuFollower")
+      .modifyHappiness(self.save, "DEPOSITED", mon)
+  end
   self.dirty = true
   self:cry(mon)
   self.game.stringBuffer = self:nameOf(mon)

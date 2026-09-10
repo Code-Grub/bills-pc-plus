@@ -6,7 +6,6 @@
 -- through mod:read + load, the same way example_jukebox loads its song.
 
 local Font = require("src.render.Font")
-local PartyMenu = require("src.ui.PartyMenu")
 local Sprites = require("src.pokemon.Sprites")
 local Boxes = require("src.pokemon.Boxes")
 local Stats = require("src.pokemon.Stats")
@@ -934,9 +933,10 @@ return function(mod)
   -- between the two modes.  Because the menu outlives the grid it is also
   -- where the session is reconciled -- via SEE YA! or by backing out.
   local function boxMenuFactory(engine)
+    assert(engine, "boxMenuFactory needs a seam")
     return {
       new = function(game)
-        local session = BoxSession.new(game)
+        local session = BoxSession.new(game, engine)
         live = session -- the wrapper above refuses saves for this one
         -- A visit can be abandoned without exit ever running (a soft reset
         -- pops the whole stack), and a deferral left over from one must not

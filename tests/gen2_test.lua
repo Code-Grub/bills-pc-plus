@@ -145,4 +145,55 @@ do
     "specifically the egg sheet, not CYNDAQUIL's own icon")
 end
 
+-- Depositing nudges happiness on Gen 1 (PIKAHAPPY_DEPOSITED,
+-- bills_pc.asm:247), routed through the Pikachu follower.  Gold has no
+-- storage event in its happiness enum at all, so the Gen 2 arm is a
+-- deliberate no-op -- and must not raise, which the old direct call did:
+-- src.world.gen2.Follower has no modifyHappiness.
+do
+  local mon = { species = "PIKACHU", happiness = 70 }
+  local ok = pcall(function()
+    Engine.new(true):modifyHappiness({ party = {} }, "DEPOSITED", mon)
+  end)
+  T.check(ok, "a Gen 2 deposit does not raise when nudging happiness")
+  T.eq(mon.happiness, 70,
+    "and leaves happiness alone: GSC has no deposit event to honour")
+
+  local ok1 = pcall(function()
+    Engine.new(false):modifyHappiness({ party = {} }, "DEPOSITED",
+      { species = "PIKACHU" })
+  end)
+  T.check(ok1, "and neither does a Gen 1 one")
+end
+
+-- The same defect end to end, against the real Gold module table rather
+-- than a hand-written double: BoxSession:deposit called
+-- PikachuFollower.modifyHappiness directly, and the loadMod above has
+-- already pointed that require at src.world.gen2.Follower, which has no
+-- such member.  The call read nil and raised -- after table.remove had
+-- taken the mon out of the party, so every Gold deposit died mid-move,
+-- with the mon in neither place.
+do
+  local BoxSession = dofile("mods/bills_pc_plus/BoxSession.lua")
+  local gold = {
+    data = Data,
+    save = {
+      party = { { species = "FIXMON_A", level = 5, hp = 10, happiness = 70,
+                  dvs = {}, statExp = {}, moves = {} },
+                { species = "FIXMON_B", level = 5, hp = 10,
+                  dvs = {}, statExp = {}, moves = {} } },
+      boxes = nil,
+      currentBox = 1,
+    },
+  }
+  local mon = gold.save.party[1]
+  local session = BoxSession.new(gold, Engine.new(true))
+  local okGold, err = pcall(function() return session:deposit(1) end)
+  T.check(okGold, "a Gold deposit completes: " .. tostring(err))
+  T.eq(okGold and session:count(1), 1, "and the mon reaches the box")
+  T.eq(gold.save.party[1] and gold.save.party[1].species, "FIXMON_B",
+    "leaving the party behind it")
+  T.eq(mon.happiness, 70, "with its happiness untouched")
+end
+
 T.finish("bills_pc_plus gen2")

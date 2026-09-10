@@ -98,4 +98,30 @@ function Engine:drawIcon(game, mon, x, y, animated)
   love.graphics.draw(image, quad, x, y)
 end
 
+-- Nudge a mon's happiness for a storage event.
+--
+-- Gen 1 has no general happiness stat at all -- only the Yellow Pikachu
+-- follower's -- so this is PikachuFollower.modifyHappiness there, mirroring
+-- PIKAHAPPY_DEPOSITED (engine/pokemon/bills_pc.asm:247).  On Gold the old
+-- direct call read nil and raised: src.world.gen2.Follower has no
+-- modifyHappiness.
+--
+-- Gold does NOT get a happiness nudge here, and that is faithful rather than
+-- a gap.  Gold has real, general happiness (src/core/gen2/Happiness.lua,
+-- Happiness.change(mon, event)), but its event enum is transcribed row for
+-- row from data/events/happiness_changes.asm and has no storage event at
+-- all -- GAINLEVEL, USEDITEM, GYMBATTLE, FAINTED, GROOMING and so on, with
+-- nothing for depositing.  Depositing a mon does not change happiness in
+-- GSC; the Gen 1 behaviour this mirrors is a Yellow follower quirk with no
+-- Gen 2 counterpart.  Inventing one would be this mod making up game rules.
+--
+-- The Gen 1 arm is pcall'd: a deposit that already moved the mon must not
+-- fail afterwards because a cosmetic stat could not be nudged.
+function Engine:modifyHappiness(save, event, mon)
+  if self.gen2 then return end
+  pcall(function()
+    require("src.world.PikachuFollower").modifyHappiness(save, event, mon)
+  end)
+end
+
 return Engine
