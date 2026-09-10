@@ -882,4 +882,115 @@ do
   Data.gen2Palettes, Data.gen2Icons = nil, nil
 end
 
+-- Gold owns the WITHDRAW / DEPOSIT / MOVE POKéMON W/O MAIL menu itself
+-- (src/ui/gen2/PcMenu.lua) and pushes Gen2BoxMenu with the answer already in
+-- opts.mode.  The factory used to take no opts at all, so it built its own
+-- copy of that menu on top: the player picked WITHDRAW, got asked WITHDRAW
+-- again, and only the second press reached the boxes.
+do
+  local function open(id, opts)
+    local popped, closed = 0, 0
+    local g = {
+      data = Data,
+      save = { party = {}, boxes = nil, currentBox = 1 },
+      input = { wasPressed = function() return false end,
+                isDown = function() return false end },
+    }
+    g.stack = { push = function() end,
+                pop = function() popped = popped + 1 end }
+    if opts and opts.onClose == "count" then
+      opts.onClose = function() closed = closed + 1 end
+    end
+    local screen = Screens.get(g, id).new(g, opts)
+    return screen, g,
+      function() return popped end, function() return closed end
+  end
+
+  -- Pressing B with an empty grid and nothing carried: the exit path.
+  local function pressB(screen, g)
+    g.input.wasPressed = function(_, key) return key == "b" end
+    screen:update(0)
+    g.input.wasPressed = function() return false end
+  end
+
+  local w = open("Gen2BoxMenu", { mode = "withdraw" })
+  T.check(w and w.session ~= nil,
+    "a Gen 2 push carrying mode = withdraw lands on the grid, not a menu")
+  T.eq(w.items, nil, "so there is no second WITHDRAW/DEPOSIT list to answer")
+  T.eq(w.mode, "box", "and the grid opens in its box view")
+
+  local d = open("Gen2BoxMenu", { mode = "deposit" })
+  T.check(d and d.session ~= nil, "mode = deposit lands on the grid too")
+  T.eq(d.mode, "deposit", "in the deposit view, the party row it walks")
+
+  -- MOVE POKéMON W/O MAIL browses the boxes and moves a mon between them,
+  -- which is the box view with MOVE on its cursor menu.  PcMenu's mail
+  -- refusal fires before the push, so nothing is skipped by landing here.
+  local m = open("Gen2BoxMenu", { mode = "move" })
+  T.eq(m and m.mode, "box", "mode = move browses the boxes, like withdraw")
+
+  -- The Gen 1 shape, and any Gen 2 caller that names nothing: unchanged.
+  local none = open("Gen2BoxMenu", nil)
+  T.check(none and none.items ~= nil,
+    "a push with no opts still builds the mod's own menu")
+  T.eq(none.items[1] and none.items[1].label, "WITHDRAW POKéMON",
+    "with WITHDRAW first, the way it always opened")
+  -- The menu carries the session too (it outlives each grid push), so the
+  -- mode is what tells the two apart.
+  T.eq(none.mode, nil, "and it is the menu, not a grid")
+
+  local g1 = open("BoxMenu", nil)
+  T.check(g1 and g1.items ~= nil, "Red's BoxMenu id is untouched by any of it")
+
+  local bogus = open("Gen2BoxMenu", { save = {}, mode = "rearrange" })
+  T.check(bogus and bogus.items ~= nil,
+    "an unrecognised mode falls back to the menu rather than guessing")
+
+  -- The stack contract.  Gold's onClose IS the pop that takes this screen
+  -- off (src/ui/gen2/BoxMenu.lua never pops itself, it only calls onClose),
+  -- so doing both would strip Gold's PC menu as well and leave the player
+  -- standing on the map.
+  local direct, dg, dpops, dcloses =
+    open("Gen2BoxMenu", { mode = "withdraw", onClose = "count" })
+  pressB(direct, dg)
+  T.eq(dcloses(), 1, "B out of a directly-opened grid calls onClose once")
+  T.eq(dpops(), 0, "and pops nothing itself -- onClose is the pop")
+
+  -- Same B, deposit view: it is the same exit, not a mode switch.
+  local ddirect, ddg, ddpops, ddcloses =
+    open("Gen2BoxMenu", { mode = "deposit", onClose = "count" })
+  pressB(ddirect, ddg)
+  T.eq(ddcloses(), 1, "and out of the deposit view too")
+  T.eq(ddpops(), 0, "with the same single exit")
+
+  -- A caller that names a mode but hands down no way home still gets out.
+  local orphan, og, opops = open("Gen2BoxMenu", { mode = "withdraw" })
+  pressB(orphan, og)
+  T.eq(opops(), 1, "with no onClose, B falls back to popping the grid")
+
+  -- And the menu path keeps its own discipline: the grid pops back to the
+  -- menu underneath, which is what owns the exit from the PC there.
+  do
+    local grid
+    local popped = 0
+    local g = {
+      data = Data,
+      save = { party = {}, boxes = nil, currentBox = 1 },
+      input = { wasPressed = function() return false end,
+                isDown = function() return false end },
+    }
+    g.stack = { push = function(_, st) grid = st end,
+                pop = function() popped = popped + 1 end }
+    local menu = Screens.get(g, "Gen2BoxMenu").new(g)
+    for _, item in ipairs(menu.items) do
+      if item.label == "WITHDRAW POKéMON" then item.onSelect() end
+    end
+    T.check(grid ~= nil, "the menu's WITHDRAW row pushes the grid")
+    T.eq(grid.close, nil, "which carries no close of its own")
+    g.input.wasPressed = function(_, key) return key == "b" end
+    grid:update(0)
+    T.eq(popped, 1, "so B there pops once, back to the menu")
+  end
+end
+
 T.finish("bills_pc_plus gen2")

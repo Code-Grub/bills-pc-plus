@@ -697,6 +697,19 @@ return function(mod)
     }
   end
 
+  -- B out of the grid, from either mode.  Which screen that lands on is not
+  -- the grid's business, so it is a field the builder sets rather than a
+  -- branch here.
+  --
+  -- Pushed from the mod's own WITHDRAW/DEPOSIT menu, `close` is unset and
+  -- the grid just pops itself: the menu is still underneath (its rows carry
+  -- keepOpen) and it owns the exit, so the session is reconciled there.
+  -- Opened straight from Gold's PC menu there is no menu underneath, and
+  -- `close` carries both halves of that job -- see boxMenuFactory.
+  local function leave(self)
+    if self.close then self.close() else self.game.stack:pop() end
+  end
+
   -- The deposit-mode branch of Screen:update: left/right walk the party
   -- row (what to deposit), up/down page the destination box (where it
   -- goes), A deposits, B leaves deposit mode.
@@ -707,7 +720,7 @@ return function(mod)
       -- Switching self.mode over to "box" here instead would drop the
       -- player into the withdraw half of the PC without them choosing it,
       -- and leave the menu one extra B press away.
-      self.game.stack:pop()
+      leave(self)
     elseif input:wasPressed("a") then
       local ok, reason = self.session:deposit(self.partyCursor,
                                               self.session.save.currentBox)
@@ -761,7 +774,7 @@ return function(mod)
         -- beneath us because its rows carry keepOpen.  The grid never
         -- commits: the menu owns every exit from the PC, so there is one
         -- place the save can be written rather than two.
-        self.game.stack:pop()
+        leave(self)
       end
       return
     end
@@ -1029,10 +1042,34 @@ return function(mod)
   -- grid then pops back here for free, and that is how the player switches
   -- between the two modes.  Because the menu outlives the grid it is also
   -- where the session is reconciled -- via SEE YA! or by backing out.
+  -- Gold's PC menu asks WITHDRAW / DEPOSIT / MOVE POKéMON W/O MAIL before
+  -- this screen is ever built, and pushes it with the answer
+  -- (src/ui/gen2/PcMenu.lua:344-349).  A caller that has already asked must
+  -- not be asked again, so a push carrying a mode skips the mod's own menu
+  -- and opens the grid in that mode -- one WITHDRAW, one screen.
+  --
+  -- The mod's grid has two modes where Gold's list has three, because
+  -- Gold's third is a mode of the SAME list: _MovePKMNWithoutMail walks the
+  -- boxes and moves a mon between them, which is exactly what the box view
+  -- does with MOVE on its cursor menu.  So both browse-the-boxes ids land
+  -- on "box" and only DEPOSIT -- the one that walks the party instead --
+  -- maps elsewhere.  The mail gate MOVE carries stays PcMenu's
+  -- (src/ui/gen2/PcMenu.lua:340-343): it refuses before pushing, so a party
+  -- holding a letter never reaches here.
+  --
+  -- Anything unrecognised is nil, and a nil mode is the Gen 1 shape: build
+  -- the menu and let the player choose.  Red pushes BoxMenu with no opts at
+  -- all, so that path arrives here unchanged.
+  local ENTRY_MODES = {
+    withdraw = "box",
+    move = "box",
+    deposit = "deposit",
+  }
+
   local function boxMenuFactory(engine)
     assert(engine, "boxMenuFactory needs a seam")
     return {
-      new = function(game)
+      new = function(game, opts)
         local session = BoxSession.new(game, engine)
         live = session -- the wrapper above refuses saves for this one
         -- A visit can be abandoned without exit ever running (a soft reset
@@ -1060,6 +1097,39 @@ return function(mod)
             pendingSave = false
             if game.writeSave then game:writeSave() end
           end
+        end
+
+        -- The pre-answered entry.  The grid is the whole screen here, so it
+        -- inherits the menu's job of reconciling on the way out, and it
+        -- leaves by the route the caller named rather than by popping
+        -- itself.
+        --
+        -- Gold's onClose is `function() game.stack:pop() end` -- the pop
+        -- that takes THIS screen off, the same contract vanilla's
+        -- Gen2BoxMenu honours (src/ui/gen2/BoxMenu.lua:290, :612: it never
+        -- pops, it only calls onClose).  So exactly one of the two happens:
+        -- calling onClose AND popping would take Gold's PC menu down with
+        -- us and drop the player on the map.  Falling back to a plain pop
+        -- covers a caller that names a mode but no way home.
+        --
+        -- opts.save is deliberately not read.  BoxSession is built on
+        -- game.save, and the save.write veto above recognises this visit by
+        -- `live.save == game.save`; a session reconciling into some other
+        -- table would leave that veto permanently unarmed -- the one thing
+        -- standing between the PC's stale boxes and a write.  Gold hands
+        -- down `opts.save or game.save` from a caller that passes none
+        -- (src/ui/gen2/PcMenu.lua:104, src/ui/gen2/CenterPcMenu.lua:232),
+        -- so today it is the same table anyway; if it ever is not, the
+        -- engine's own save is still the one the engine will write.
+        local entryMode = opts and ENTRY_MODES[opts.mode]
+        if entryMode then
+          local grid = newGrid(game, session, entryMode, engine)
+          local onClose = opts.onClose
+          grid.close = function()
+            exit()
+            if onClose then onClose() else game.stack:pop() end
+          end
+          return grid
         end
 
         local menu = mod.ui.Menu.new(game, {
