@@ -3,6 +3,35 @@
 Written in the style described in [docs/changelog-style.md](docs/changelog-style.md):
 what changed for the player, with the reasoning left in the commit history.
 
+## 0.15.0
+
+### Added
+
+- The box screen works on Gold, Silver and Crystal now, not only Red, Blue and
+  Yellow. The grid, the sprite panel, the stats strip and deposit mode all
+  behave the way they do on Gen 1.
+- Gen 2 shows all five of its stats. Special is two stats there rather than
+  one, so the strip runs five columns instead of four, with two-letter headers
+  to fit them. The DV row still shows four numbers: Gen 2 stores a single
+  Special DV that feeds both special stats, so it sits centred under the pair
+  rather than claiming either column.
+
+### Changed
+
+- The stats strip is a table. A header row names each column, and every DV sits
+  under the stat it belongs to.
+- The type line has its own row at the foot of the strip, a blank line clear of
+  the numbers, and has dropped the TY label it carried in 0.14.0.
+- Left and right arrows flank the box number, showing which directions page.
+
+### Known limitations
+
+- On Gen 2 the DV row carries no DV label -- the fifth column takes the space
+  it used. Told apart by their length on most Pokemon, the two number rows can
+  read alike on a low-level one, where both are two digits wide.
+- On Gen 2 an egg's portrait shows the Pokemon it will hatch into. Its icon in
+  the grid is correct.
+
 ## 0.14.0
 
 - Empty slots in a box now show a small dot, so a half-full box reads as a box
