@@ -473,6 +473,16 @@ return function(mod)
   local STAT_HEADERS = { "ATK", "DEF", "SPD", "SPC" }
   local STAT_KEYS = { "attack", "defense", "speed", "special" }
 
+  -- Printed in place of a stat this strip cannot name.  Gen 1 never reaches
+  -- it: every Gen 1 stat block has all five keys, and an incomplete one is
+  -- rebuilt before it is ever drawn.  Gold does, under SPC: its stat block
+  -- splits Special into specialAttack and specialDefense and keeps no
+  -- `special` at all (src/battle/gen2/Mon.lua:163-195).  Showing those two
+  -- is phase 2; until then the column has to read as ABSENT rather than as
+  -- a value, because a confident "0" in a column formatted exactly like the
+  -- three correct ones beside it is a wrong number, not a gap.
+  local NO_STAT = "--"
+
   -- Right-align text into column i's field.  Measured with Font.width, not
   -- #text * 8: a TTF font pack answers with its own advances (5px base), so
   -- byte length would drift the columns apart under any pack but the
@@ -519,7 +529,9 @@ return function(mod)
       -- wherever that pack's space happens to measure (Layout.STATS_COLS).
       for i, name in ipairs(STAT_HEADERS) do
         drawCell(name, i, Layout.STATS_Y)
-        drawCell(tostring(stats[STAT_KEYS[i]] or 0), i, Layout.STATS_Y + row)
+        local value = stats[STAT_KEYS[i]]
+        drawCell(value and tostring(value) or NO_STAT, i,
+          Layout.STATS_Y + row)
       end
     end
     -- The type line sits under SPD/SPC, and the DV spread under that -- both
