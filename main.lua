@@ -410,11 +410,28 @@ return function(mod)
       -- for two mons and flag only one of them.  Read it fresh.
       self.spriteTrueColor = (cached.img and trueColor) and true or false
       if self.sprite then
-        local pw, ph = self.sprite:getDimensions()
+        local sprite = self.sprite
+        local pw, ph = sprite:getDimensions()
         local px, py = Layout.spritePos(pw, ph)
+        -- The pic is grayscale art on BOTH generations, and each colours it
+        -- its own way.  Gen 1's SGB zone does it after the fact and this
+        -- call must stay the bare draw it always was, so the seam hands
+        -- back no palette there; Gold has no such pass and needs the
+        -- species' own colours bound around the blit, or the panel renders
+        -- black and white beside a coloured Gen 1 one.
+        --
+        -- trueColor art is exempt on both.  A pokemon.sprite hook that
+        -- returned real colour art is already the colour it wants to be:
+        -- Gen 1 marks the rect so PaletteFX re-blits it unshaded, and the
+        -- Gen 2 arm must skip the shader for the same reason -- running a
+        -- four-shade palette over full-colour art would destroy it.
+        local colors = not self.spriteTrueColor
+          and self.engine:monColors(self.game, mon) or nil
         -- SummaryMenu draws the front pic mirrored; sx = -1 anchored at the
         -- block's right edge lands it on px..px+pw
-        love.graphics.draw(self.sprite, px + pw, py, 0, -1, 1)
+        self.engine:withColors(colors, function()
+          love.graphics.draw(sprite, px + pw, py, 0, -1, 1)
+        end)
         if self.spriteTrueColor then
           PaletteFX.markTrueColor(px, py, pw, ph)
         end

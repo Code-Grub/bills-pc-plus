@@ -212,6 +212,92 @@ function Engine:iconImageFor(game, mon)
   return cached
 end
 
+-- --------------------------------------------------------------- palettes
+--
+-- The two generations get their colour from systems with nothing in common,
+-- and this is where they meet.
+--
+-- Gen 1 colours a frame AFTER it is drawn: the screen declares an SGB
+-- palette zone (Screen:sgbPalettes -> PaletteFX.wholeNamed(data, "MEWMON"))
+-- and PaletteFX substitutes a colour per shade over the finished picture, so
+-- every draw on that path is the plain draw it has always been.  Nothing
+-- here may touch it.
+--
+-- A CGB has no such pass, because on that hardware the colour IS the palette
+-- the art is drawn through.  Every 2bpp sheet the importer writes is the
+-- same four greys (src/render/GbcPalette.lua), so art blitted raw on Gen 2
+-- stays grey -- which is exactly what this screen did on Crystal: a
+-- black-and-white grid and a black-and-white front pic beside Gen 1's
+-- coloured ones.
+--
+-- So the Gen 1 arm of both lookups below returns nil, withColors hands a nil
+-- palette straight to the draw, and Gen 1's picture cannot move.
+
+-- The palette a mon MENU ICON draws through.
+--
+-- Every party icon OAM entry is PAL_OW_RED (data/sprite_anims/oam.asm
+-- :315-355) and InitPartyMenuOBPals loads PartyMenuOBPals into OBJ palette 0
+-- for the whole list, species and EGG alike (engine/gfx/color.asm:593-598,
+-- :1228-1229) -- one palette for every icon on screen, whatever it is an
+-- icon OF.  src/ui/gen2/PartyMenu.lua:872-873 reads exactly this entry, and
+-- so does the Pokedex scrollbar thumb (src/ui/gen2/PokedexMenu.lua:780-781),
+-- which wears OBJ 0 for the same reason.
+--
+-- The cart's own Bill's PC draws no icons at all -- it is a text list -- so
+-- the party menu is the only authority for how a menu icon is coloured, and
+-- the deposit view's party row IS that list.
+function Engine:iconColors(game)
+  if not self.gen2 then return nil end
+  local pals = game and game.data and game.data.gen2Palettes
+  pals = pals and pals.partyMenu
+  return pals and pals[1] or nil
+end
+
+-- The palette a mon's FRONT PIC draws through: its own species colours, the
+-- shiny row included.
+--
+-- GetPlayerOrMonPalettePointer hands a pic the row of the species being
+-- shown and takes the shiny pair off wTempMonDVs, and every Gold screen that
+-- puts a front pic up as "this Pokemon" goes through it: the summary screen
+-- (src/ui/gen2/SummaryMenu.lua:1061-1067), the Pokedex entry
+-- (src/ui/gen2/PokedexMenu.lua:523) and Gold's own box submenu
+-- (src/ui/gen2/BoxMenu.lua:742-748, engine/gfx/cgb_layouts.asm:284-300).
+--
+-- Gold's box LIST paints its pic in gfx/pc/orange.pal instead
+-- (BoxMenu:panelColors' other arm), and that is deliberately not what this
+-- returns.  The orange belongs to the vanilla list layout this mod replaced
+-- outright; the panel here is an identity plate -- name, level, pic, stats,
+-- shiny mark -- which is what the submenu shows, not the list.  It is also
+-- what keeps Gen 2 reading like Gen 1, where the pic is coloured rather than
+-- flat.
+function Engine:monColors(game, mon)
+  if not (self.gen2 and mon and mon.species) then return nil end
+  local pals = game and game.data and game.data.gen2Palettes
+  if not pals then return nil end
+  return require("src.world.gen2.Palettes")
+    .monColors(pals, mon.species, mon.shiny)
+end
+
+-- Run `body` with `colors` bound, or just run it.
+--
+-- A nil palette is the Gen 1 case and costs nothing: no require, no shader,
+-- no saved state -- the draw is the bare draw it was before any of this
+-- existed.  The GbcPalette.available() guard is Gold's own; every .with call
+-- site under src/ui/gen2 carries it, so a boot whose driver refused the
+-- shader still shows grey art rather than no art.
+--
+-- Scoped per DRAW rather than around a whole screen, on purpose.  The shader
+-- recovers a shade index from the red channel, and love.graphics.rectangle
+-- samples a 1x1 white texture -- so a black fill made inside a bound palette
+-- comes back as that palette's colour 0.  The grid's empty-slot dots and the
+-- cursor stubs are exactly such fills, and they sit between the icon draws.
+function Engine:withColors(colors, body)
+  if not colors then return body() end
+  local GbcPalette = require("src.render.GbcPalette")
+  if not GbcPalette.available() then return body() end
+  return GbcPalette.with(colors, body)
+end
+
 -- Draw a mon's icon with its top-left at (x, y).
 --
 -- Gen 1 delegates rather than reimplementing: PartyMenu.drawIcon does an
@@ -221,6 +307,11 @@ end
 -- over verbatim from the old call site -- with selected true, drawIcon reads
 -- mon.stats.hp to pick an animation speed from HP-bar colour, meaningless
 -- for a stored mon; forceAlt animates instead.
+--
+-- The Gen 2 arm quads its own sheet and so has to bind its own palette: the
+-- sheet is grey until one is, and the raw blit this replaced is why the grid
+-- and the deposit view came out black and white on Crystal.  The wrapper
+-- goes around the DRAW only -- see withColors on why it must not go wider.
 function Engine:drawIcon(game, mon, x, y, animated)
   if not self.gen2 then
     PartyMenu.drawIcon(game, mon, x, y, false, 0, animated)
@@ -232,7 +323,9 @@ function Engine:drawIcon(game, mon, x, y, animated)
   local frame = animated and 1 or 0
   local quad = love.graphics.newQuad(0, frame * G2_ICON,
     G2_ICON, G2_ICON, iw, ih)
-  love.graphics.draw(image, quad, x, y)
+  self:withColors(self:iconColors(game), function()
+    love.graphics.draw(image, quad, x, y)
+  end)
 end
 
 -- Nudge a mon's happiness for a storage event.
