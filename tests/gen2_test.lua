@@ -289,4 +289,139 @@ do
   T.eq(mon.happiness, 70, "with its happiness untouched")
 end
 
+-- ------- Gen 2 shaped data
+--
+-- Every case above this point runs on Fixtures.fresh(), whose species carry
+-- Gen 1's baseStats = { hp, attack, defense, speed, special }.  Passing
+-- `generation = 2` to loadMod swaps module FACADES, not the dataset, so a
+-- case built on those fixtures runs Gold's code over Red's numbers -- which
+-- is exactly how the WITHDRAW crash below reached review through a green
+-- suite.
+--
+-- Gold's extracted data splits Special in two and keeps no `special` at all:
+-- src/battle/gen2/Mon.lua:163-195 reads baseStats.specialAttack and
+-- baseStats.specialDefense, and the stat block it returns has the same six
+-- keys.  These fixtures are that shape, and carry no `special` anywhere on
+-- purpose -- a "fix" that quietly writes a Gen-1-shaped block back over a
+-- Gold mon has to fail here rather than pass quietly.
+local function goldData()
+  local function def(id, name, base)
+    return { id = id, name = name, baseStats = base,
+             growthRate = "MEDIUM_SLOW", types = { "NORMAL", "NORMAL" },
+             genderRatio = 127, catchRate = 45, baseExp = 64,
+             level1Moves = {} }
+  end
+  return {
+    pokemon = {
+      GOLDMON_A = def("GOLDMON_A", "GOLDMON A",
+        { hp = 60, attack = 62, defense = 63, speed = 60,
+          specialAttack = 80, specialDefense = 80 }),
+      GOLDMON_B = def("GOLDMON_B", "GOLDMON B",
+        { hp = 45, attack = 49, defense = 49, speed = 45,
+          specialAttack = 65, specialDefense = 65 }),
+    },
+  }
+end
+
+-- A party/box mon in the same shape: five stat-exp words (the Gen 2 party
+-- struct kept Gen 1's, ending at SpcExp) but a six-key stat block.
+local function goldMon(species, over)
+  local mon = {
+    species = species, level = 10, hp = 24, maxHp = 24,
+    dvs = { attack = 9, defense = 8, speed = 8, special = 8 },
+    statExp = { hp = 0, attack = 0, defense = 0, speed = 0, special = 0 },
+    moves = {},
+    stats = { hp = 24, attack = 17, defense = 17, speed = 17,
+              specialAttack = 20, specialDefense = 20 },
+  }
+  for k, v in pairs(over or {}) do mon[k] = v end
+  return mon
+end
+
+-- WITHDRAW raised on every Gold mon.  BoxSession called
+-- src.pokemon.Stats.ensure directly, and src.pokemon.Stats is NOT in
+-- Gen2Compat's coverage table -- only src.pokemon.Boxes is -- so on Gold the
+-- Gen 1 module ran over Gen 2 data: Stats.ORDER wants `special`, so
+-- statsComplete was always false and it always recalculated, and Stats.calc
+-- then read speciesDef.baseStats.special (nil on Gold) into arithmetic.  It
+-- raised out of the WITHDRAW row's onSelect, which src/ui/Menu.lua:101 calls
+-- unwrapped, so it reached the love loop as a hard error.
+do
+  local BoxSession = dofile("mods/bills_pc_plus/BoxSession.lua")
+  local data = goldData()
+  local game = {
+    data = data,
+    save = { party = {}, currentBox = 1,
+             boxes = { { goldMon("GOLDMON_A") } } },
+  }
+  local session = BoxSession.new(game, Engine.new(true))
+  local okW, errW = pcall(function() return session:withdraw(1, 1) end)
+  T.check(okW, "a Gold withdraw completes: " .. tostring(errW))
+  local mon = game.save.party[1]
+  T.check(mon, "and the mon reaches the party")
+  T.check(mon and mon.stats and mon.stats.specialAttack,
+    "carrying Gold's own stat block: SpA is there")
+  T.check(mon and mon.stats and mon.stats.specialDefense, "and SpD")
+  T.eq(mon and mon.stats and mon.stats.special, nil,
+    "and no Gen 1 `special` was written back over it")
+  T.eq(session:count(1), 0, "and the cell it came out of is empty")
+end
+
+-- Why the call is there at all: box_struct stops before MON_STATS, so a mon
+-- decoded out of an imported .sav has no stat block and every later HP-bar
+-- draw nil-indexes it.  That has to still work on Gold.
+do
+  local BoxSession = dofile("mods/bills_pc_plus/BoxSession.lua")
+  local data = goldData()
+  local game = {
+    data = data,
+    save = { party = {}, currentBox = 1,
+             boxes = { { goldMon("GOLDMON_B",
+               { stats = nil, maxHp = nil, hp = nil }) } } },
+  }
+  local session = BoxSession.new(game, Engine.new(true))
+  local okW, errW = pcall(function() return session:withdraw(1, 1) end)
+  T.check(okW, "a stat-less Gold mon withdraws: " .. tostring(errW))
+  local mon = game.save.party[1]
+  T.check(mon and mon.stats and type(mon.stats.hp) == "number",
+    "and gets a stat block on the way into the party")
+  T.check(mon and mon.stats and type(mon.stats.specialAttack) == "number",
+    "with SpA calculated from Gold's split base stats")
+  T.eq(mon and mon.stats and mon.stats.special, nil, "and still no `special`")
+end
+
+-- The Gen 1 arm of the seam is the pre-existing call, verbatim: Stats.ensure
+-- with the SPECIES DEF first (add_mon.asm _MoveMon's CalcStats tail).
+do
+  local Stats = require("src.pokemon.Stats")
+  local real = Stats.ensure
+  local seen
+  Stats.ensure = function(a, b) seen = { def = a, mon = b } end
+  local mon = { species = "FIXMON_A" }
+  Engine.new(false):ensureStats(Data, mon)
+  Stats.ensure = real
+  T.check(seen, "the Gen 1 seam delegates to src.pokemon.Stats.ensure")
+  T.eq(seen and seen.def, Data.pokemon.FIXMON_A, "with the species def first")
+  T.eq(seen and seen.mon, mon, "and the mon second")
+end
+
+-- Gold refreshes a stat block through src/battle/gen2/Mon.refreshStats(mon,
+-- data) -- the whole data table, not a def -- which is what
+-- src/ui/gen2/SummaryMenu.lua:292 calls when the summary opens on a boxed
+-- mon, and what src/ui/gen2/PartyMenu.lua:142 calls per party row.
+do
+  local Mon = require("src.battle.gen2.Mon")
+  local real = Mon.refreshStats
+  local seen
+  Mon.refreshStats = function(a, b) seen = { mon = a, data = b } end
+  local data = goldData()
+  local mon = { species = "GOLDMON_A" }
+  Engine.new(true):ensureStats(data, mon)
+  Mon.refreshStats = real
+  T.check(seen, "the Gen 2 seam delegates to src.battle.gen2.Mon.refreshStats")
+  T.eq(seen and seen.mon, mon, "with the mon first")
+  T.eq(seen and seen.data, data,
+    "and the whole data table second, the way Gold's own callers pass it")
+end
+
 T.finish("bills_pc_plus gen2")

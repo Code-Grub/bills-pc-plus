@@ -25,10 +25,36 @@
 
 local Boxes = require("src.pokemon.Boxes")
 local Party = require("src.pokemon.Party")
-local Stats = require("src.pokemon.Stats")
 
 local BoxSession = {}
 BoxSession.__index = BoxSession
+
+-- The seam a session gets when it is constructed without one.
+--
+-- A seamless session is a direct construction -- a test, or another mod
+-- driving the model -- and so Gen 1: main.lua always has an Engine to hand
+-- down.  Every call site then holds ONE unconditional `self.engine:...`
+-- rather than an if/else that reads like a policy decision.
+--
+-- It restates the seam's Gen 1 arms rather than delegating to them, because
+-- a mod cannot require its own files: BoxSession.lua is loaded through
+-- mod:read + load, so Engine.lua is not on any package.path this can reach.
+-- The two must therefore be kept in step by hand, and the pcall around the
+-- happiness nudge is part of that -- Engine:modifyHappiness pcalls it so a
+-- deposit that already moved the mon cannot fail afterwards because a
+-- cosmetic stat could not be nudged, and a fallback that let it raise would
+-- not be the same behaviour.
+local DEFAULT_ENGINE = {
+  modifyHappiness = function(_, save, event, mon)
+    pcall(function()
+      require("src.world.PikachuFollower").modifyHappiness(save, event, mon)
+    end)
+  end,
+  ensureStats = function(_, data, mon)
+    require("src.pokemon.Stats")
+      .ensure(data.pokemon and data.pokemon[mon.species], mon)
+  end,
+}
 
 -- Order-sensitive digest of the mons a layout was recorded against.
 --
@@ -114,14 +140,15 @@ end
 -- falls back to.
 function BoxSession.new(game, engine)
   assert(engine == nil or (type(engine) == "table"
-    and type(engine.modifyHappiness) == "function"),
-    "BoxSession's seam needs modifyHappiness")
+    and type(engine.modifyHappiness) == "function"
+    and type(engine.ensureStats) == "function"),
+    "BoxSession's seam needs modifyHappiness and ensureStats")
   Boxes.ensure(game.save)
   local self = setmetatable({
     game = game,
     save = game.save,
     data = game.data,
-    engine = engine,
+    engine = engine or DEFAULT_ENGINE,
     carry = nil,
     dirty = false,
   }, BoxSession)
@@ -266,12 +293,17 @@ end
 -- add_mon.asm _MoveMon runs CalcStats on the way back to the party:
 -- box_struct stops before MON_STATS, so a mon decoded out of an imported
 -- .sav has no stat block and every later HP-bar draw nil-indexes it.
+--
+-- Through the seam, because the two generations calculate stats from
+-- different base-stat shapes: the direct src.pokemon.Stats.ensure call this
+-- replaced is uncovered by Gen2Compat, so on Gold it ran Red's maths over
+-- Gold's data and raised on every single withdrawal (Engine:ensureStats).
 function BoxSession:withdraw(boxNum, slot)
   local s = self.sparse[boxNum]
   local mon = s and s[slot]
   if not mon then return false, "no_mon" end
   if #self.save.party >= Party.MAX then return false, "party_full" end
-  Stats.ensure(self.data.pokemon[mon.species], mon)
+  self.engine:ensureStats(self.data, mon)
   s[slot] = nil
   table.insert(self.save.party, mon)
   self.dirty = true
@@ -303,14 +335,7 @@ function BoxSession:deposit(partySlot, boxNum)
   -- seam: Gold's happiness enum has no storage event, and the direct call
   -- this replaced read nil on Gold and raised -- one line after
   -- table.remove, so the deposit died with the mon in neither place.
-  -- A seamless session is a direct construction and so Gen 1, where the
-  -- seam's own Gen 1 arm makes this same call.
-  if self.engine then
-    self.engine:modifyHappiness(self.save, "DEPOSITED", mon)
-  else
-    require("src.world.PikachuFollower")
-      .modifyHappiness(self.save, "DEPOSITED", mon)
-  end
+  self.engine:modifyHappiness(self.save, "DEPOSITED", mon)
   self.dirty = true
   self:cry(mon)
   self.game.stringBuffer = self:nameOf(mon)

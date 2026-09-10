@@ -1,8 +1,8 @@
 -- Per-generation seam.  Gold is a second engine beside Gen 1
 -- (src/core/Game2.lua), and the mod API on top is deliberately one API, so
 -- only a handful of places actually differ: the icon draw path, the screen
--- ids, and happiness.  They live here rather than as branches scattered
--- through main.lua.
+-- ids, happiness, and the stat block a mon leaving storage is given.  They
+-- live here rather than as branches scattered through main.lua.
 --
 -- The generation is passed IN, never sniffed.  The screens registry serves
 -- both generations and Gold's screens carry Gen2-prefixed ids so a mod
@@ -11,6 +11,12 @@
 -- running.  A version allow-list would be the wrong answer twice over: it
 -- excludes the mod from a future game by construction, and this already
 -- knows.
+
+local PartyMenu = require("src.ui.PartyMenu")
+local Screens = require("src.ui.Screens")
+local Sprites = require("src.pokemon.Sprites")
+local Stats = require("src.pokemon.Stats")
+local Assets = require("src.render.Assets")
 
 local Engine = {}
 Engine.__index = Engine
@@ -40,23 +46,70 @@ end
 -- summary can never be left.  src/ui/gen2/BoxMenu.lua:358-363 passes exactly
 -- these three, and this mirrors it.
 --
--- `ui` is mod.ui rather than a require of src.ui.Screens: a mod reaches the
--- registry through its own facade, and the seam has no mod handle of its own.
+-- The PUSH goes through `ui` (mod.ui) rather than src.ui.Screens: a mod
+-- reaches the registry through its own facade, so a mod that replaced the
+-- summary screen still wins.
+--
+-- The id comes from summaryScreenId rather than being written out again
+-- here: two copies of the same pair drift, and a method nothing calls is a
+-- method nothing tests.
+--
+-- The existence check mirrors src/ui/gen2/BoxMenu.lua:358 -- Screens.get
+-- RAISES for an unregistered id, and a mod may have pulled the summary
+-- screen out from under this one.  A STATS row that does nothing beats one
+-- that drops the player into the love loop's error screen.  The LOOKUP has
+-- to go through src.ui.Screens directly: mod.ui exposes push and no lookup,
+-- which is the one question that facade cannot answer.
 function Engine:openSummary(ui, game, mon, save)
+  local id = self:summaryScreenId()
+  if not pcall(Screens.get, game, id) then return end
   if not self.gen2 then
-    ui.push(game, "SummaryMenu", mon)
+    ui.push(game, id, mon)
     return
   end
-  ui.push(game, "Gen2SummaryMenu", {
+  ui.push(game, id, {
     mon = mon,
     save = save,
     onClose = function() game.stack:pop() end,
   })
 end
 
-local PartyMenu = require("src.ui.PartyMenu")
-local Sprites = require("src.pokemon.Sprites")
-local Assets = require("src.render.Assets")
+-- Give a mon a stat block on the way back into the party.
+--
+-- Gen 1 delegates to src.pokemon.Stats.ensure, the pre-existing call:
+-- add_mon.asm _MoveMon runs CalcStats on the way back to the party, because
+-- box_struct stops before MON_STATS and a mon decoded out of an imported
+-- .sav has no stat block at all.
+--
+-- That module is the reason this needs a seam.  src.pokemon.Stats is NOT in
+-- Gen2Compat's coverage table -- src.pokemon.Boxes is the only member under
+-- that prefix that is -- so on Gold the direct call ran RED's stat maths over
+-- Gold's data.  Gen 2 has no `special`: the stat block is
+-- { hp, attack, defense, speed, specialAttack, specialDefense }
+-- (src/battle/gen2/Mon.lua:163-195), so Stats.ORDER's `special` was never
+-- complete, Stats.calc always recalculated, and it read
+-- speciesDef.baseStats.special -- nil on Gold -- straight into arithmetic.
+-- Every WITHDRAW raised, out through the row's onSelect, which
+-- src/ui/Menu.lua:101 calls unwrapped.
+--
+-- Teaching Stats.ensure to tolerate a missing `special` would have been the
+-- wrong repair twice over: it would write a five-key Gen 1 block over a Gold
+-- mon, and Gold's own numbers are not Red's anyway.  So the Gen 2 arm calls
+-- what Gold calls -- Mon.refreshStats(mon, data), the whole data table rather
+-- than one species def (src/ui/gen2/SummaryMenu.lua:292, and PartyMenu.lua
+-- :142 per party row).  It also syncs name/types/gender/shiny, which is
+-- exactly what Gold wants a mon leaving storage to have.
+--
+-- Required inline rather than in the preamble: a Gen 1 boot must not drag
+-- Gold's battle module in to reach a branch it never takes.
+function Engine:ensureStats(data, mon)
+  if not (data and mon) then return end
+  if not self.gen2 then
+    Stats.ensure(data.pokemon and data.pokemon[mon.species], mon)
+    return
+  end
+  require("src.battle.gen2.Mon").refreshStats(mon, data)
+end
 
 -- Gold's icon sheets are 16px wide with the two animation frames stacked
 -- vertically at a 16px pitch, which is how src/ui/gen2/PartyMenu.lua quads
