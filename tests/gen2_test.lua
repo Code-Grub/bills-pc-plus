@@ -993,4 +993,250 @@ do
   end
 end
 
+-- ==================== the stats strip shows all five Gen 2 stats
+--
+-- Gold splits Special into specialAttack and specialDefense and keeps no
+-- `special` at all (src/battle/gen2/Mon.lua:163-195), so the four-column
+-- strip printed NO_STAT under SPC on every Gen 2 boot.  A fifth column has
+-- to come out of the strip's own width: box B's interior is 18 glyphs, and
+-- Gen 1's [gutter 2][gap 1][field 3] x 4 + [margin 1] needs 19 for five.
+-- So Gen 2 drops the inter-column gaps -- [gutter 2][field 3] x 5
+-- [margin 1] = 18 -- and shrinks the headers to two letters so the leading
+-- glyph of each field is what separates one column from the next.  Gen 1
+-- keeps every pixel it had.
+do
+  local Layout = dofile("mods/bills_pc_plus/Layout.lua")
+
+  -- ---- geometry.  These live in gen2_test rather than layout_test because
+  -- that suite's count is the Gen 1 tripwire: it has to stay at exactly 107.
+  T.eq(#Layout.STATS_COLS_5, 5, "five gapless fields for Gen 2's five stats")
+  T.eq(Layout.STATS_COL_W, 24,
+    "each still three glyphs wide -- a Gen 2 stat routinely reaches 3 digits")
+
+  do
+    local edges = {}
+    for i, x in ipairs(Layout.STATS_COLS_5) do
+      edges[i] = tostring(x + Layout.STATS_COL_W)
+    end
+    T.eq(table.concat(edges, " "), "48 72 96 120 144",
+      "right edges at 24px pitch, the field width itself")
+  end
+
+  for i = 2, #Layout.STATS_COLS_5 do
+    T.eq(Layout.STATS_COLS_5[i] - Layout.STATS_COLS_5[i - 1],
+      Layout.STATS_COL_W,
+      ("field %d abuts field %d: the gap is what paid for the column")
+        :format(i, i - 1))
+  end
+
+  T.eq(Layout.STATS_COLS_5[1], Layout.STATS_X + 16,
+    "the DV gutter survives -- x=8..24 is exactly \"DV\"")
+  T.eq(152 - (Layout.STATS_COLS_5[5] + Layout.STATS_COL_W), 8,
+    "and so does the one-glyph right margin the strip already had")
+
+  -- The shared Special DV is centred on the seam between the two special
+  -- fields, not right-aligned into either.
+  T.eq(Layout.STATS_DV_SHARED_CX, 120,
+    "the shared DV centres on the boundary between the SA and SD fields")
+  T.eq(Layout.STATS_COLS_5[4] + Layout.STATS_COL_W,
+    Layout.STATS_DV_SHARED_CX, "which is where SA's field ends")
+  T.eq(Layout.STATS_COLS_5[5], Layout.STATS_DV_SHARED_CX,
+    "and where SD's begins")
+
+  -- Gen 1's constants are added beside, never edited.
+  T.eq(#Layout.STATS_COLS, 4, "Gen 1 still has its four columns")
+  T.eq(Layout.STATS_COLS[4] + Layout.STATS_COL_W, 144,
+    "ending where they always did")
+end
+
+-- The seam describes the table; drawStats loops over what it is handed, so
+-- main.lua never asks which generation it is drawing.  Layout is passed IN
+-- because a mod cannot require its own files -- Engine.lua is a chunk, not
+-- a module on package.path -- and geometry belongs in Layout either way.
+do
+  local Layout = dofile("mods/bills_pc_plus/Layout.lua")
+  local g1 = Engine.new(false):statTable(Layout)
+  local g2 = Engine.new(true):statTable(Layout)
+
+  local function join(list) return table.concat(list, " ") end
+
+  T.eq(join(g1.headers), "ATK DEF SPD SPC", "Gen 1 keeps its three-letter headers")
+  T.eq(join(g1.keys), "attack defense speed special", "over Red's four stats")
+  T.eq(g1.cols, Layout.STATS_COLS, "in the gapped four-column geometry")
+  T.eq(g1.width, Layout.STATS_COL_W, "at the shared field width")
+
+  T.eq(join(g2.headers), "AT DF SP SA SD",
+    "Gen 2 uses two-letter headers: with no gaps, three would run together")
+  T.eq(join(g2.keys),
+    "attack defense speed specialAttack specialDefense",
+    "over Gold's five, both halves of the split Special named")
+  T.eq(g2.cols, Layout.STATS_COLS_5, "in the gapless five-column geometry")
+  T.eq(g2.width, Layout.STATS_COL_W, "at the same field width")
+
+  -- The DV row does NOT gain a column.  The cartridge stores four DVs and
+  -- derives HP's from their parity; Mon.lua:169 reads one `dvs.special` and
+  -- feeds it to BOTH special stats, which is why SpA and SpD always rise
+  -- together.  (Mon.lua:170-172's `dvs.specialAttack or dvs.specialDefense`
+  -- is a migration path for records written before the shared field
+  -- existed, not a per-stat DV.)
+  T.eq(#g1.dvs, 4, "four DV cells on Gen 1")
+  T.eq(#g2.dvs, 4, "and four on Gen 2 as well, under five stat columns")
+
+  for _, cell in ipairs(g2.dvs) do
+    T.check(cell.key ~= "specialAttack" and cell.key ~= "specialDefense",
+      "no per-stat special DV is invented: " .. tostring(cell.key))
+  end
+
+  T.eq(g2.dvs[4].key, "special", "the fourth cell is the shared Special DV")
+  T.eq(g2.dvs[4].col, nil, "not right-aligned into either special field")
+  T.eq(g2.dvs[4].centre, Layout.STATS_DV_SHARED_CX,
+    "but centred across the pair, which is the only honest placement")
+  T.eq(g1.dvs[4].col, 4, "while Gen 1's fourth DV keeps its own column")
+  T.eq(g1.dvs[4].centre, nil, "and is right-aligned there, as it always was")
+end
+
+-- ---- what actually reaches the screen.
+--
+-- The seam could be right and the draw still wrong, so this opens the grid
+-- the way a player does, through each registered id, and reads the cells
+-- back off Font.draw with their coordinates.
+do
+  local Font = require("src.render.Font")
+  local Layout = dofile("mods/bills_pc_plus/Layout.lua")
+  -- Under a generation=2 load Gen2Compat facades src.ui.PartyMenu onto
+  -- Gold's module, which carries no drawIcon -- so the Gen 1 arm's delegate
+  -- has to be stood in here, exactly as the palette case above does.
+  local Delegate = require("src.ui.PartyMenu")
+
+  local function stripOf(id, mon)
+    Data.pokemon.STATMON = Data.pokemon.STATMON
+      or { types = { "PSYCHIC", "PSYCHIC" } }
+    local game = {
+      data = Data,
+      save = { party = {}, currentBox = 1, boxes = { { mon } } },
+      input = { wasPressed = function() return false end,
+                isDown = function() return false end },
+    }
+    local screen
+    game.stack = { push = function(_, st) screen = st end,
+                   pop = function() end }
+    local menu = Screens.get(game, id).new(game)
+    for _, item in ipairs(menu.items) do
+      if item.label == "WITHDRAW POKéMON" then item.onSelect() end
+    end
+    screen.counter = 0
+    local seen = {}
+    local realDraw, realDelegate = Font.draw, Delegate.drawIcon
+    Delegate.drawIcon = function() end
+    Font.draw = function(text, x, y)
+      seen[#seen + 1] = { text = tostring(text), x = x, y = y }
+      return realDraw(text, x, y)
+    end
+    local ok, err = pcall(screen.draw, screen)
+    Font.draw, Delegate.drawIcon = realDraw, realDelegate
+    if not ok then error(err, 0) end
+    return seen
+  end
+
+  -- Every cell drawn on one row of the strip, left to right.  The DV row
+  -- also carries its "DV" label in the gutter at STATS_X; dropLabel takes
+  -- it out so a row's length is a count of VALUES.
+  local function rowAt(seen, y, dropLabel)
+    local out = {}
+    for _, cell in ipairs(seen) do
+      if cell.y == y and not (dropLabel and cell.x == Layout.STATS_X) then
+        out[#out + 1] = cell
+      end
+    end
+    return out
+  end
+
+  local function texts(row)
+    local t = {}
+    for i, cell in ipairs(row) do t[i] = cell.text end
+    return table.concat(t, " ")
+  end
+
+  -- Right edges, not origins: the cells are right-aligned with Font.width,
+  -- so this is the measurement that survives a TTF font pack.
+  local function edges(row)
+    local t = {}
+    for i, cell in ipairs(row) do
+      t[i] = tostring(cell.x + Font.width(cell.text))
+    end
+    return table.concat(t, " ")
+  end
+
+  local HEAD_Y = Layout.STATS_Y
+  local VAL_Y = Layout.STATS_Y + Layout.ROW
+  local DV_Y = Layout.STATS_Y + Layout.ROW * 2
+
+  -- A deliberately nasty mon: three digits in BOTH special stats, which is
+  -- the tightest case the gapless layout has to hold.
+  local DVS = { attack = 15, defense = 9, speed = 12, special = 15 }
+  local function monBase()
+    return { species = "STATMON", level = 78, hp = 200, moves = {},
+             statExp = {}, dvs = DVS }
+  end
+
+  do
+    local mon = monBase()
+    mon.stats = { hp = 200, attack = 123, defense = 145, speed = 108,
+                  specialAttack = 156, specialDefense = 176 }
+    local seen = stripOf("Gen2BoxMenu", mon)
+
+    T.eq(texts(rowAt(seen, HEAD_Y)), "AT DF SP SA SD",
+      "Gen 2 draws five headers")
+    T.eq(edges(rowAt(seen, HEAD_Y)), "48 72 96 120 144",
+      "right-aligned into the five fields, so each keeps a leading space")
+
+    local values = rowAt(seen, VAL_Y)
+    T.eq(texts(values), "123 145 108 156 176", "and five values under them")
+    T.eq(edges(values), "48 72 96 120 144", "right-aligned into the same fields")
+    T.check(not texts(values):find("%-%-"),
+      "nothing on Gen 2 reaches NO_STAT any more")
+
+    local dvs = rowAt(seen, DV_Y, true)
+    T.eq(#dvs, 4, "the DV row draws four cells, not five")
+    T.eq(texts(dvs), "15 9 12 15", "Attack, Defense, Speed and the shared Special")
+    T.eq(edges({ dvs[1], dvs[2], dvs[3] }), "48 72 96",
+      "the first three sit right-aligned under their own columns")
+
+    local shared = dvs[4]
+    T.eq(shared.x + math.floor(Font.width(shared.text) / 2),
+      Layout.STATS_DV_SHARED_CX,
+      "and the Special DV is centred on the seam between SA and SD")
+    T.check(shared.x + Font.width(shared.text) ~= 120,
+      "not right-aligned into SA, which would read as \"SpD has no DV\"")
+    T.check(shared.x + Font.width(shared.text) ~= 144,
+      "nor into SD, which says the same thing the other way round")
+
+    local label = rowAt(seen, DV_Y)
+    T.eq(#label, 5, "the gutter label still rides the DV row")
+    T.eq(label[1].text, "DV", "and it is still DV")
+    T.eq(label[1].x, Layout.STATS_X, "in the gutter it always had")
+  end
+
+  -- Gen 1 does not move: same four columns, same three-letter headers, same
+  -- right edges, same DV row.
+  do
+    local mon = monBase()
+    mon.stats = { hp = 200, attack = 123, defense = 145, speed = 108,
+                  special = 156 }
+    local seen = stripOf("BoxMenu", mon)
+
+    T.eq(texts(rowAt(seen, HEAD_Y)), "ATK DEF SPD SPC",
+      "Gen 1 keeps its four three-letter headers")
+    T.eq(edges(rowAt(seen, HEAD_Y)), "48 80 112 144",
+      "at the gapped right edges it has always had")
+    T.eq(texts(rowAt(seen, VAL_Y)), "123 145 108 156", "with four values")
+    T.eq(edges(rowAt(seen, VAL_Y)), "48 80 112 144", "in the same fields")
+
+    local dvs = rowAt(seen, DV_Y, true)
+    T.eq(#dvs, 4, "and four DVs")
+    T.eq(edges(dvs), "48 80 112 144",
+      "each right-aligned under its own stat, nothing centred")
+  end
+end
+
 T.finish("bills_pc_plus gen2")

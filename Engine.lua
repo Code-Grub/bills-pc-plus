@@ -74,6 +74,81 @@ function Engine:openSummary(ui, game, mon, save)
   })
 end
 
+-- The stats table the strip tabulates: which columns, what to call them,
+-- and which stat keys fill them.  drawStats loops over what this hands
+-- back, so main.lua never asks which generation it is drawing.
+--
+-- Red's stat block is { hp, attack, defense, speed, special }; Gold's is
+-- { hp, attack, defense, speed, specialAttack, specialDefense } and has no
+-- `special` at all (src/battle/gen2/Mon.lua:163-195).  So the strip printed
+-- "--" under SPC on every Gen 2 boot -- honest, but a whole stat missing
+-- from a screen whose entire job is showing stats.
+--
+-- HP is in neither list: it reads on the count line under the sprite, where
+-- a "100/100" needs the panel's whole width.
+--
+-- LAYOUT IS PASSED IN rather than required.  A mod cannot require its own
+-- files (main.lua's `sibling`), so this chunk has no way to reach Layout on
+-- its own -- and it should not want one: the pixel geometry belongs in the
+-- geometry module, and what belongs HERE is the per-generation knowledge of
+-- which geometry the table needs. The caller holds both.
+--
+-- The two headers rows differ in LENGTH, not just spelling.  Gen 1's fields
+-- are separated by a glyph of air (Layout.STATS_COLS is pitched 32 for a
+-- 24px field); Gen 2's are flush (pitch 24), because a fifth column had to
+-- come out of that air.  Two-letter headers right-aligned into a
+-- three-glyph field keep a leading blank glyph, and on Gen 2 that blank is
+-- the ONLY thing separating one column from the next -- so the headers had
+-- to shrink for the columns to fit.  Three letters there would run
+-- together.
+--
+-- `dvs` is a separate list because the DV row is NOT one cell per stat.
+-- Gen 2 kept Gen 1's DV structure through the stat split: the cartridge
+-- stores four DVs (Attack/Defense/Speed/Special) and derives HP's from
+-- their parity, and Mon.lua:169 reads a single `dvs.special` and feeds it
+-- to BOTH specialAttack and specialDefense -- which is why SpA and SpD
+-- always rise together.  There is no SpA DV and no SpD DV to print.
+-- (Mon.lua:170-172's `dvs.specialAttack or dvs.specialDefense` fallback is
+-- a migration path for records written before the shared field existed, not
+-- a per-stat DV, and reading it as one would put two different numbers
+-- under two stats that cannot differ.)
+--
+-- A cell names either `col` -- right-aligned into that field, which is what
+-- makes the row self-labeling, the 15 sitting under ATK -- or `centre`, an
+-- x to centre on.  The shared Special DV takes the second: centred on the
+-- seam between the two special fields it straddles the pair and claims
+-- neither, where right-aligning it into one would read as "the other has no
+-- DV".
+function Engine:statTable(layout)
+  if not self.gen2 then
+    return {
+      cols = layout.STATS_COLS,
+      width = layout.STATS_COL_W,
+      headers = { "ATK", "DEF", "SPD", "SPC" },
+      keys = { "attack", "defense", "speed", "special" },
+      dvs = {
+        { key = "attack", col = 1 },
+        { key = "defense", col = 2 },
+        { key = "speed", col = 3 },
+        { key = "special", col = 4 },
+      },
+    }
+  end
+  return {
+    cols = layout.STATS_COLS_5,
+    width = layout.STATS_COL_W,
+    headers = { "AT", "DF", "SP", "SA", "SD" },
+    keys = { "attack", "defense", "speed",
+             "specialAttack", "specialDefense" },
+    dvs = {
+      { key = "attack", col = 1 },
+      { key = "defense", col = 2 },
+      { key = "speed", col = 3 },
+      { key = "special", centre = layout.STATS_DV_SHARED_CX },
+    },
+  }
+end
+
 -- Give a mon a stat block on the way back into the party.
 --
 -- Gen 1 delegates to src.pokemon.Stats.ensure, the pre-existing call:

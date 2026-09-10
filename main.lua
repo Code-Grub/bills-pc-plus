@@ -490,35 +490,46 @@ return function(mod)
     unclip(prev)
   end
 
-  -- The four stats the strip tabulates, header text and save key in the same
-  -- order so one loop fills a column with both.  HP is not among them: it
-  -- reads on the count line under the sprite, where a "100/100" needs the
-  -- panel's whole width.
-  local STAT_HEADERS = { "ATK", "DEF", "SPD", "SPC" }
-  local STAT_KEYS = { "attack", "defense", "speed", "special" }
-
-  -- Printed in place of a stat this strip cannot name.  Gen 1 never reaches
-  -- it: every Gen 1 stat block has all five keys, and an incomplete one is
-  -- rebuilt before it is ever drawn.  Gold does, under SPC: its stat block
-  -- splits Special into specialAttack and specialDefense and keeps no
-  -- `special` at all (src/battle/gen2/Mon.lua:163-195).  Showing those two
-  -- is phase 2; until then the column has to read as ABSENT rather than as
-  -- a value, because a confident "0" in a column formatted exactly like the
-  -- three correct ones beside it is a wrong number, not a gap.
+  -- Which stats the strip tabulates -- how many columns, what they are
+  -- called, and which stat keys fill them -- comes from the seam
+  -- (Engine:statTable), because the answer is per generation: Red has one
+  -- Special and Gold has two.  Header text and stat key stay in the same
+  -- order there, so one loop still fills a column with both, and this file
+  -- never asks which game it is drawing.
+  --
+  -- Printed in place of a stat the table names but the mon has not got.
+  -- Neither generation should reach it: Gen 1's stat block has all five
+  -- keys and an incomplete one is rebuilt before it is ever drawn, and the
+  -- Gen 2 table now names the two keys Gold actually stores rather than the
+  -- `special` it has never had.  It stays because a stat block from
+  -- somewhere unexpected -- an imported .sav, a future generation -- has to
+  -- read as ABSENT rather than as a value: a confident "0" in a column
+  -- formatted exactly like the correct ones beside it is a wrong number,
+  -- not a gap.
   local NO_STAT = "--"
 
-  -- Right-align text into column i's field.  Measured with Font.width, not
-  -- #text * 8: a TTF font pack answers with its own advances (5px base), so
-  -- byte length would drift the columns apart under any pack but the
-  -- built-in tiles.
-  local function drawCell(text, i, y)
-    local right = Layout.STATS_COLS[i] + Layout.STATS_COL_W
+  -- Right-align text so it ENDS at x = right.  Measured with Font.width,
+  -- not #text * 8: a TTF font pack answers with its own advances (5px
+  -- base), so byte length would drift the columns apart under any pack but
+  -- the built-in tiles.
+  local function drawRight(text, right, y)
     Font.draw(text, right - Font.width(text), y)
+  end
+
+  -- Centre text ON x, for the one cell that belongs to two columns at once
+  -- (the Gen 2 DV row's shared Special -- see Engine:statTable).  Measured
+  -- the same way and for the same reason.
+  local function drawCentred(text, cx, y)
+    Font.draw(text, cx - math.floor(Font.width(text) / 2), y)
   end
 
   local function drawStats(self)
     local mon = self:focused()
     local row = Layout.ROW
+    -- The table's shape, geometry included: the seam holds the per-
+    -- generation knowledge, Layout holds the pixels, and this hands the
+    -- second to the first because a mod's chunk cannot require its sibling.
+    local strip = self.engine:statTable(Layout)
     -- The bottom line of the box window mirrors the columns above it: the
     -- box count centred under the grid, the focused mon's HP centred under
     -- its sprite.  The line carries nothing else -- the shiny mark sits up
@@ -551,10 +562,11 @@ return function(mod)
       -- its field rather than space-padded into position: Font is
       -- proportional under a TTF font pack, so "%3d" would land the columns
       -- wherever that pack's space happens to measure (Layout.STATS_COLS).
-      for i, name in ipairs(STAT_HEADERS) do
-        drawCell(name, i, Layout.STATS_Y)
-        local value = stats[STAT_KEYS[i]]
-        drawCell(value and tostring(value) or NO_STAT, i,
+      for i, name in ipairs(strip.headers) do
+        local right = strip.cols[i] + strip.width
+        drawRight(name, right, Layout.STATS_Y)
+        local value = stats[strip.keys[i]]
+        drawRight(value and tostring(value) or NO_STAT, right,
           Layout.STATS_Y + row)
       end
     end
@@ -577,7 +589,12 @@ return function(mod)
     -- case ran wall to wall while every other row had air on the right.
     --
     -- Each DV lands in its own stat's column, which is what makes the row
-    -- self-labeling: the 15 sits under ATK.
+    -- self-labeling: the 15 sits under ATK.  There are FOUR of them under
+    -- either generation's header row -- Gen 2's five stats share four DVs,
+    -- one Special DV feeding both halves of the split -- so the row is
+    -- driven by the seam's own dv list rather than by the stat keys above
+    -- it, and a cell says for itself whether it owns a column or straddles
+    -- a pair (Engine:statTable).
     --
     -- The type line then skips a row and lands on the strip's last one.
     -- With the "TY " label gone, nothing but position tells the reader that
@@ -590,8 +607,14 @@ return function(mod)
       if showDVs() then
         local dvs = mon.dvs or {}
         Font.draw("DV", Layout.STATS_X, Layout.STATS_Y + row * 2)
-        for i, key in ipairs(STAT_KEYS) do
-          drawCell(tostring(dvs[key] or 0), i, Layout.STATS_Y + row * 2)
+        for _, cell in ipairs(strip.dvs) do
+          local text = tostring(dvs[cell.key] or 0)
+          if cell.centre then
+            drawCentred(text, cell.centre, Layout.STATS_Y + row * 2)
+          else
+            drawRight(text, strip.cols[cell.col] + strip.width,
+              Layout.STATS_Y + row * 2)
+          end
         end
       else
         -- With the DVs hidden the type line rises one row, keeping its

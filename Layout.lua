@@ -117,6 +117,46 @@ Layout.STATS_X, Layout.STATS_Y = 8, 96
 Layout.STATS_COLS = { 24, 56, 88, 120 }
 Layout.STATS_COL_W = 24
 
+-- The same strip with FIVE fields, for a generation whose Special is two
+-- stats rather than one.
+--
+-- Box B's interior is 18 glyphs (x=8..152).  The four-column layout above
+-- spends [gutter 2][gap 1][field 3] x 4 + [margin 1] = 17, and a fifth
+-- column on that pattern needs 19 -- one more than exists.  The fields
+-- cannot shrink either: a Gen 2 stat routinely reaches three digits, which
+-- is exactly what 24px holds.
+--
+-- So the gaps go and nothing else does: [gutter 2][field 3] x 5
+-- [margin 1] = 18, flush.  The gutter is still precisely "DV" at x=8..24
+-- and the right margin is still the glyph of air at 144..152 that keeps the
+-- table off the frame -- the two things the four-column layout was careful
+-- about are the two things kept.  What pays for the column is the air
+-- BETWEEN columns, which the headers give back: two-letter headers
+-- right-aligned into a three-glyph field leave a leading blank glyph, so
+-- every column still opens with a space.  A three-letter header here would
+-- run into its neighbour, which is why the callers that use these fields
+-- shorten theirs.
+--
+-- Right edges land on 48, 72, 96, 120, 144: pitch 24, the field width
+-- itself.  The last is 144, the same right edge the four-column layout
+-- ends on, so the strip's outer shape does not change between generations.
+Layout.STATS_COLS_5 = { 24, 48, 72, 96, 120 }
+
+-- Where a DV that belongs to the FOURTH AND FIFTH fields at once is
+-- centred.
+--
+-- Gen 2 kept Gen 1's DV structure even though the stats split: the
+-- cartridge stores four DVs -- Attack, Defense, Speed, Special -- and
+-- derives HP's from their parity, so one Special DV feeds both special
+-- stats (src/battle/gen2/Mon.lua:169).  There is no fourth column to put it
+-- in and no fifth either; it belongs to both.
+--
+-- 120 is the seam between those two fields (field 4 ends there, field 5
+-- begins there), so text centred on it straddles the pair and claims
+-- neither.  Right-aligning it into field 4 would read as "SpD has no DV"
+-- and into field 5 as the reverse, and both are false.
+Layout.STATS_DV_SHARED_CX = 120
+
 function Layout.slotXY(index)
   local i = index - 1
   return Layout.GRID_X + (i % Layout.COLS) * Layout.CELL,
