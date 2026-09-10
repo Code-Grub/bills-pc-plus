@@ -256,7 +256,10 @@ do
     Engine.new(false):modifyHappiness({ party = {} }, "DEPOSITED",
       { species = "PIKACHU" })
   end)
-  T.check(ok1, "and neither does a Gen 1 one")
+  T.check(ok1,
+    "and the Gen 1 arm survives a follower module that cannot answer: it "
+    .. "pcalls, because a deposit that already moved the mon must not fail "
+    .. "afterwards over a cosmetic stat")
 end
 
 -- The same defect end to end, against the real Gold module table rather
@@ -282,7 +285,8 @@ do
   local mon = gold.save.party[1]
   local session = BoxSession.new(gold, Engine.new(true))
   local okGold, err = pcall(function() return session:deposit(1) end)
-  T.check(okGold, "a Gold deposit completes: " .. tostring(err))
+  T.check(okGold, okGold and "a Gold deposit completes"
+    or ("a Gold deposit raised: " .. tostring(err)))
   T.eq(okGold and session:count(1), 1, "and the mon reaches the box")
   T.eq(gold.save.party[1] and gold.save.party[1].species, "FIXMON_B",
     "leaving the party behind it")
@@ -356,7 +360,8 @@ do
   }
   local session = BoxSession.new(game, Engine.new(true))
   local okW, errW = pcall(function() return session:withdraw(1, 1) end)
-  T.check(okW, "a Gold withdraw completes: " .. tostring(errW))
+  T.check(okW, okW and "a Gold withdraw completes"
+    or ("a Gold withdraw raised: " .. tostring(errW)))
   local mon = game.save.party[1]
   T.check(mon, "and the mon reaches the party")
   T.check(mon and mon.stats and mon.stats.specialAttack,
@@ -381,7 +386,8 @@ do
   }
   local session = BoxSession.new(game, Engine.new(true))
   local okW, errW = pcall(function() return session:withdraw(1, 1) end)
-  T.check(okW, "a stat-less Gold mon withdraws: " .. tostring(errW))
+  T.check(okW, okW and "a stat-less Gold mon withdraws"
+    or ("a stat-less Gold mon raised: " .. tostring(errW)))
   local mon = game.save.party[1]
   T.check(mon and mon.stats and type(mon.stats.hp) == "number",
     "and gets a stat block on the way into the party")
