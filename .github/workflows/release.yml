@@ -181,12 +181,31 @@ jobs:
         run: |
           set -euo pipefail
 
+          # The release notes are the CHANGELOG's own section for this version.
+          # That file is written for players -- one entry per change, the
+          # reasoning deliberately left behind in the commits (see
+          # docs/changelog-style.md) -- so pasting commit subjects here would
+          # publish exactly what that file exists to keep out of a player's way.
+          #
+          # A "### Added" line does not end the section: the pattern needs
+          # "## " with the space, and "###" fails it.
+          entry="$(awk -v want="## $VERSION" '
+            $0 == want { inside = 1; next }
+            inside && /^## / { exit }
+            inside { print }
+          ' CHANGELOG.md | sed -e '/./,$!d' -e :a -e '/^\n*$/{$d;N;ba' -e '}' || true)"
+
+          # Fall back to commit subjects when the release has no entry -- a
+          # hand-dispatched build, or a version bumped without one. Better a
+          # rough list than an empty release page.
           prev="$(git tag -l 'v*' --sort=-v:refname | grep -v "^${TAG}$" | head -1 || true)"
           range="${prev:+${prev}..}$GITHUB_SHA"
           changes="$(git log --no-merges --pretty='- %s' "$range" | head -50 || true)"
 
           notes=$'Download the .zip and install it from the game: MODS > Import mod .zip.'
-          if [ -n "$changes" ]; then
+          if [ -n "$entry" ]; then
+            notes+=$'\n\n'"$entry"
+          elif [ -n "$changes" ]; then
             notes+=$'\n\n## Changes\n\n'"$changes"
           fi
           printf 'Release notes:\n%s\n' "$notes"
