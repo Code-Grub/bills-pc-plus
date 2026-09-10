@@ -1009,39 +1009,44 @@ do
 
   -- ---- geometry.  These live in gen2_test rather than layout_test because
   -- that suite's count is the Gen 1 tripwire: it has to stay at exactly 107.
-  T.eq(#Layout.STATS_COLS_5, 5, "five gapless fields for Gen 2's five stats")
+  T.eq(#Layout.STATS_COLS_5, 5, "five fields for Gen 2's five stats")
   T.eq(Layout.STATS_COL_W, 24,
     "each still three glyphs wide -- a Gen 2 stat routinely reaches 3 digits")
+  T.eq(Layout.STATS_GAP_5, 4,
+    "separated by a HALF glyph: whole glyphs do not fit and none does not read")
 
   do
     local edges = {}
     for i, x in ipairs(Layout.STATS_COLS_5) do
       edges[i] = tostring(x + Layout.STATS_COL_W)
     end
-    T.eq(table.concat(edges, " "), "48 72 96 120 144",
-      "right edges at 24px pitch, the field width itself")
+    T.eq(table.concat(edges, " "), "32 60 88 116 144",
+      "right edges at 28px pitch -- the field plus its half-glyph gap")
   end
 
   for i = 2, #Layout.STATS_COLS_5 do
     T.eq(Layout.STATS_COLS_5[i] - Layout.STATS_COLS_5[i - 1],
-      Layout.STATS_COL_W,
-      ("field %d abuts field %d: the gap is what paid for the column")
+      Layout.STATS_COL_W + Layout.STATS_GAP_5,
+      ("field %d clears field %d by the gap, so the digits cannot run together")
         :format(i, i - 1))
   end
 
-  T.eq(Layout.STATS_COLS_5[1], Layout.STATS_X + 16,
-    "the DV gutter survives -- x=8..24 is exactly \"DV\"")
+  T.eq(Layout.STATS_COLS_5[1], Layout.STATS_X,
+    "the table starts flush left: the DV gutter is what paid for the gaps")
   T.eq(152 - (Layout.STATS_COLS_5[5] + Layout.STATS_COL_W), 8,
-    "and so does the one-glyph right margin the strip already had")
+    "and the one-glyph right margin the strip already had survives")
+  T.eq(5 * Layout.STATS_COL_W + 4 * Layout.STATS_GAP_5, 136,
+    "five fields and four gaps spend 136 of box B's 144px interior")
 
   -- The shared Special DV is centred on the seam between the two special
   -- fields, not right-aligned into either.
-  T.eq(Layout.STATS_DV_SHARED_CX, 120,
-    "the shared DV centres on the boundary between the SA and SD fields")
-  T.eq(Layout.STATS_COLS_5[4] + Layout.STATS_COL_W,
-    Layout.STATS_DV_SHARED_CX, "which is where SA's field ends")
-  T.eq(Layout.STATS_COLS_5[5], Layout.STATS_DV_SHARED_CX,
-    "and where SD's begins")
+  T.eq(Layout.STATS_DV_SHARED_CX, 118,
+    "the shared DV centres on the gap between the SA and SD fields")
+  T.eq(Layout.STATS_COLS_5[4] + Layout.STATS_COL_W, 116, "SA's field ends at 116")
+  T.eq(Layout.STATS_COLS_5[5], 120, "SD's begins at 120")
+  T.eq(Layout.STATS_DV_SHARED_CX,
+    (Layout.STATS_COLS_5[4] + Layout.STATS_COL_W + Layout.STATS_COLS_5[5]) / 2,
+    "and the centre is the midpoint of the two, claiming neither")
 
   -- Gen 1's constants are added beside, never edited.
   T.eq(#Layout.STATS_COLS, 4, "Gen 1 still has its four columns")
@@ -1066,12 +1071,18 @@ do
   T.eq(g1.width, Layout.STATS_COL_W, "at the shared field width")
 
   T.eq(join(g2.headers), "AT DF SP SA SD",
-    "Gen 2 uses two-letter headers: with no gaps, three would run together")
+    "Gen 2 uses two-letter headers: a 4px gap will not hold three apart")
   T.eq(join(g2.keys),
     "attack defense speed specialAttack specialDefense",
     "over Gold's five, both halves of the split Special named")
-  T.eq(g2.cols, Layout.STATS_COLS_5, "in the gapless five-column geometry")
+  T.eq(g2.cols, Layout.STATS_COLS_5, "in the five-column geometry")
   T.eq(g2.width, Layout.STATS_COL_W, "at the same field width")
+
+  -- The seam owns the gutter label, because whether there IS a gutter is a
+  -- per-generation fact: Gen 2 spent it on the gaps between the columns.
+  T.eq(g1.dvLabel, "DV", "Gen 1's DV row is labelled in its gutter")
+  T.eq(g2.dvLabel, false,
+    "Gen 2's is not: there is no gutter left to hold the label")
 
   -- The DV row does NOT gain a column.  The cartridge stores four DVs and
   -- derives HP's from their parity; Mon.lua:169 reads one `dvs.special` and
@@ -1187,34 +1198,51 @@ do
 
     T.eq(texts(rowAt(seen, HEAD_Y)), "AT DF SP SA SD",
       "Gen 2 draws five headers")
-    T.eq(edges(rowAt(seen, HEAD_Y)), "48 72 96 120 144",
+    T.eq(edges(rowAt(seen, HEAD_Y)), "32 60 88 116 144",
       "right-aligned into the five fields, so each keeps a leading space")
 
     local values = rowAt(seen, VAL_Y)
     T.eq(texts(values), "123 145 108 156 176", "and five values under them")
-    T.eq(edges(values), "48 72 96 120 144", "right-aligned into the same fields")
+    T.eq(edges(values), "32 60 88 116 144", "right-aligned into the same fields")
     T.check(not texts(values):find("%-%-"),
       "nothing on Gen 2 reaches NO_STAT any more")
+
+    -- The whole point of the layout: a three-digit value fills its field
+    -- edge to edge, so the ONLY thing separating one from the next is the
+    -- gap.  Assert the pixel distance rather than the edges, because it is
+    -- the distance that failed at 0px and again at 2px.
+    for i = 2, #values do
+      local prev = values[i - 1]
+      T.eq(values[i].x - (prev.x + Font.width(prev.text)),
+        Layout.STATS_GAP_5,
+        ("value %d clears value %d, even at three digits each"):format(i, i - 1))
+    end
 
     local dvs = rowAt(seen, DV_Y, true)
     T.eq(#dvs, 4, "the DV row draws four cells, not five")
     T.eq(texts(dvs), "15 9 12 15", "Attack, Defense, Speed and the shared Special")
-    T.eq(edges({ dvs[1], dvs[2], dvs[3] }), "48 72 96",
+    T.eq(edges({ dvs[1], dvs[2], dvs[3] }), "32 60 88",
       "the first three sit right-aligned under their own columns")
 
     local shared = dvs[4]
     T.eq(shared.x + math.floor(Font.width(shared.text) / 2),
       Layout.STATS_DV_SHARED_CX,
-      "and the Special DV is centred on the seam between SA and SD")
-    T.check(shared.x + Font.width(shared.text) ~= 120,
+      "and the Special DV is centred on the gap between SA and SD")
+    T.check(shared.x + Font.width(shared.text) ~= 116,
       "not right-aligned into SA, which would read as \"SpD has no DV\"")
     T.check(shared.x + Font.width(shared.text) ~= 144,
       "nor into SD, which says the same thing the other way round")
 
-    local label = rowAt(seen, DV_Y)
-    T.eq(#label, 5, "the gutter label still rides the DV row")
-    T.eq(label[1].text, "DV", "and it is still DV")
-    T.eq(label[1].x, Layout.STATS_X, "in the gutter it always had")
+    -- The cost the owner accepted: with the gutter spent, the DV row goes
+    -- unlabelled.  Pinned as an assertion so a later "fix" that puts DV
+    -- back has to collide with the geometry rather than silently overlap
+    -- the Attack DV.
+    local labelled = rowAt(seen, DV_Y)
+    T.eq(#labelled, 4, "nothing else rides the Gen 2 DV row")
+    for _, cell in ipairs(labelled) do
+      T.check(cell.text ~= "DV",
+        "no DV label on Gen 2: the gutter it lived in is now the column gaps")
+    end
   end
 
   -- Gen 1 does not move: same four columns, same three-letter headers, same
@@ -1236,6 +1264,14 @@ do
     T.eq(#dvs, 4, "and four DVs")
     T.eq(edges(dvs), "48 80 112 144",
       "each right-aligned under its own stat, nothing centred")
+
+    -- Gen 1 keeps the gutter label Gen 2 gave up.  This is the tripwire for
+    -- the seam's dvLabel: drawing it off a per-generation field must not
+    -- take it away from the generation that still has room for it.
+    local labelled = rowAt(seen, DV_Y)
+    T.eq(#labelled, 5, "the gutter label still rides Gen 1's DV row")
+    T.eq(labelled[1].text, "DV", "and it is still DV")
+    T.eq(labelled[1].x, Layout.STATS_X, "in the gutter it always had")
   end
 end
 

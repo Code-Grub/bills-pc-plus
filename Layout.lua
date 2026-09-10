@@ -120,27 +120,79 @@ Layout.STATS_COL_W = 24
 -- The same strip with FIVE fields, for a generation whose Special is two
 -- stats rather than one.
 --
--- Box B's interior is 18 glyphs (x=8..152).  The four-column layout above
--- spends [gutter 2][gap 1][field 3] x 4 + [margin 1] = 17, and a fifth
--- column on that pattern needs 19 -- one more than exists.  The fields
--- cannot shrink either: a Gen 2 stat routinely reaches three digits, which
--- is exactly what 24px holds.
+-- Box B's interior is 144px (x=8..152).  Three things in it cannot move:
 --
--- So the gaps go and nothing else does: [gutter 2][field 3] x 5
--- [margin 1] = 18, flush.  The gutter is still precisely "DV" at x=8..24
--- and the right margin is still the glyph of air at 144..152 that keeps the
--- table off the frame -- the two things the four-column layout was careful
--- about are the two things kept.  What pays for the column is the air
--- BETWEEN columns, which the headers give back: two-letter headers
--- right-aligned into a three-glyph field leave a leading blank glyph, so
--- every column still opens with a space.  A three-letter header here would
--- run into its neighbour, which is why the callers that use these fields
--- shorten theirs.
+--   * The FIELD stays 24px.  A Gen 2 stat routinely reaches three digits
+--     and three digits are exactly 24px, so a narrower field truncates.
+--   * The GLYPH stays 8px.  Crystal's five extracted font pages declare no
+--     `advance`, and the engine pins digits to the vanilla tiles even under
+--     a TTF pack precisely so right-aligned numeric columns do not drift.
+--   * The ROW stays 8px, and box B's interior is exactly five of them, so
+--     there is no sixth row to move a column onto.
 --
--- Right edges land on 48, 72, 96, 120, 144: pitch 24, the field width
--- itself.  The last is 144, the same right edge the four-column layout
--- ends on, so the strip's outer shape does not change between generations.
-Layout.STATS_COLS_5 = { 24, 48, 72, 96, 120 }
+-- Five 24px fields are 120px, leaving 24px for everything else -- and Gen
+-- 1's furniture (a 16px "DV" gutter, a glyph of air between each pair of
+-- columns, an 8px right margin) wants 56.  Something had to go, and only
+-- the gutter is big enough to pay for the rest.
+--
+--   [field 24][gap 4] x 4 [field 24][margin 8] = 144, flush.
+--
+-- WHY 4px, and not 8 or 0.  All three were rendered on real hardware-path
+-- boots (Crystal, L100 Suicune: three digits in all five columns) and
+-- looked at:
+--
+--   0px -- shipped in b56fb62 and rejected.  A three-digit value fills its
+--          24px field edge to edge, so nothing separates it from its
+--          neighbour: the row read `185253199215265`, one unbroken
+--          fifteen-digit run.  Not "two values flush" -- all five.
+--   2px -- the only width that also keeps the gutter (16 + 120 + 8 = 144),
+--          so it was tried in order to save the "DV" label.  It does not
+--          work.  The row still read as one run with a hairline in it, and
+--          the last digit landed 1px off the frame.  This is why the label
+--          is unaffordable rather than merely unfashionable.
+--   4px -- reads.  The vanilla digit tiles do not ink their full 8px cell,
+--          so 4px of layout gap presents as 5-6px of white and the eye
+--          separates the groups without effort: `185 253 199 215 265`.
+--   8px -- would be better still and does not fit.  Five fields and four
+--          whole-glyph gaps are 152, eight more than the interior, before
+--          any margin at all.
+--
+-- 4px is a HALF glyph, which is new here but not new to the screen: the
+-- box header and the HP line have always centred on half-glyphs
+-- (`48 - #label * 4`, `124 - #hpText * 4`).
+--
+-- Right edges land on 32, 60, 88, 116, 144.  The last is 144, the same
+-- right edge the four-column layout ends on, so the strip's outer shape
+-- does not change between generations; the left edge is the one that
+-- moves, from 24 to STATS_X, because the gutter is gone.
+--
+-- Headers shorten to two letters.  Right-aligned into a 24px field, a
+-- two-letter header leaves a leading blank glyph, so the header row is
+-- separated by 12px where the value row is separated by 4 -- the row that
+-- needs the least help gets the most air.  Three-letter headers would fill
+-- the field and be separated by the same 4px as the digits.
+Layout.STATS_COLS_5 = { 8, 36, 64, 92, 120 }
+Layout.STATS_GAP_5 = 4
+
+-- WHAT THIS COSTS, recorded because it was chosen with the picture in
+-- front of us and should not read later as an oversight.
+--
+-- The gutter held the word "DV", and its loss leaves the Gen 2 DV row
+-- unlabelled.  On a late-game mon that is fine: 1-2 digit DVs under a row
+-- of three-digit stats are obviously a different kind of number.  On a
+-- low-level mon it is genuinely ambiguous -- a level 6 Sentret renders
+--
+--     12  10   8  11  12      <- stats
+--     15   9  12      15      <- DVs
+--
+-- two rows of two-digit numbers with nothing naming either.  The owner
+-- accepted that, having seen it, over the alternative that would have kept
+-- the label: moving the special pair to a line of its own, which reads
+-- worse overall because it spends the blank separator row at y=120 and
+-- leaves the type line running flush under the numbers again.
+--
+-- There is no room to put the label back.  Every DV is at most two glyphs,
+-- so x=8..16 is free on this row -- one glyph, and "DV" needs two.
 
 -- Where a DV that belongs to the FOURTH AND FIFTH fields at once is
 -- centred.
@@ -151,11 +203,11 @@ Layout.STATS_COLS_5 = { 24, 48, 72, 96, 120 }
 -- stats (src/battle/gen2/Mon.lua:169).  There is no fourth column to put it
 -- in and no fifth either; it belongs to both.
 --
--- 120 is the seam between those two fields (field 4 ends there, field 5
--- begins there), so text centred on it straddles the pair and claims
+-- 118 is the middle of the gap between those two fields (SA ends at 116,
+-- SD begins at 120), so text centred on it straddles the pair and claims
 -- neither.  Right-aligning it into field 4 would read as "SpD has no DV"
 -- and into field 5 as the reverse, and both are false.
-Layout.STATS_DV_SHARED_CX = 120
+Layout.STATS_DV_SHARED_CX = 118
 
 function Layout.slotXY(index)
   local i = index - 1

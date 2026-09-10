@@ -580,13 +580,18 @@ return function(mod)
     -- player can switch off, so it checks showDVs while the type line above
     -- it does not.
     --
-    -- Only the DV row is labeled.  The header names the values above it, and
-    -- a type name is unmistakably a type, so a label on either would be
-    -- ceremony -- while the DVs, a second row of numbers under the first,
-    -- are the one row that has to say what it is.  Dropping "TY " also gave
-    -- the type line back three glyphs: ZAPDOS is ELECTRIC/FLYING at 15, and
-    -- the labeled form made 18, exactly the strip's width, so that one real
-    -- case ran wall to wall while every other row had air on the right.
+    -- Only the DV row is labeled, and only where there is a gutter to label
+    -- it in.  The header names the values above it, and a type name is
+    -- unmistakably a type, so a label on either would be ceremony -- while
+    -- the DVs, a second row of numbers under the first, are the one row that
+    -- has to say what it is.  Gen 2 has to do without: its fifth stat column
+    -- was paid for out of the gutter, and the seam says so by answering
+    -- false for dvLabel (Layout.STATS_COLS_5 records what that costs).
+    --
+    -- Dropping "TY " also gave the type line back three glyphs: ZAPDOS is
+    -- ELECTRIC/FLYING at 15, and the labeled form made 18, exactly the
+    -- strip's width, so that one real case ran wall to wall while every
+    -- other row had air on the right.
     --
     -- Each DV lands in its own stat's column, which is what makes the row
     -- self-labeling: the 15 sits under ATK.  There are FOUR of them under
@@ -606,7 +611,9 @@ return function(mod)
       local typeY = Layout.STATS_Y + row * 4
       if showDVs() then
         local dvs = mon.dvs or {}
-        Font.draw("DV", Layout.STATS_X, Layout.STATS_Y + row * 2)
+        if strip.dvLabel then
+          Font.draw(strip.dvLabel, Layout.STATS_X, Layout.STATS_Y + row * 2)
+        end
         for _, cell in ipairs(strip.dvs) do
           local text = tostring(dvs[cell.key] or 0)
           if cell.centre then

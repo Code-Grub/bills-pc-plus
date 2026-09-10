@@ -94,13 +94,20 @@ end
 -- which geometry the table needs. The caller holds both.
 --
 -- The two headers rows differ in LENGTH, not just spelling.  Gen 1's fields
--- are separated by a glyph of air (Layout.STATS_COLS is pitched 32 for a
--- 24px field); Gen 2's are flush (pitch 24), because a fifth column had to
--- come out of that air.  Two-letter headers right-aligned into a
--- three-glyph field keep a leading blank glyph, and on Gen 2 that blank is
--- the ONLY thing separating one column from the next -- so the headers had
--- to shrink for the columns to fit.  Three letters there would run
--- together.
+-- are separated by a whole glyph of air (Layout.STATS_COLS is pitched 32
+-- for a 24px field); Gen 2's are separated by half of one (pitch 28),
+-- because a fifth column had to come out of that air.  Two-letter headers
+-- right-aligned into a three-glyph field keep a leading blank glyph, which
+-- on Gen 2 buys the header row 12px of separation where the value row has
+-- 4 -- so the headers shrank for the columns to fit, and three letters
+-- there would leave the labels no better separated than the digits.
+--
+-- `dvLabel` is the gutter word, or false where there is no gutter.  Whether
+-- the strip HAS a label column is a per-generation fact now: Gen 2 spent
+-- x=8..24 on the gaps between its columns, so its DV row goes unlabelled
+-- (Layout.STATS_COLS_5 records what that costs and why it was accepted).
+-- The seam carries the word rather than main.lua, so the drawing code never
+-- asks which generation it is drawing.
 --
 -- `dvs` is a separate list because the DV row is NOT one cell per stat.
 -- Gen 2 kept Gen 1's DV structure through the stat split: the cartridge
@@ -126,6 +133,7 @@ function Engine:statTable(layout)
       width = layout.STATS_COL_W,
       headers = { "ATK", "DEF", "SPD", "SPC" },
       keys = { "attack", "defense", "speed", "special" },
+      dvLabel = "DV",
       dvs = {
         { key = "attack", col = 1 },
         { key = "defense", col = 2 },
@@ -140,6 +148,7 @@ function Engine:statTable(layout)
     headers = { "AT", "DF", "SP", "SA", "SD" },
     keys = { "attack", "defense", "speed",
              "specialAttack", "specialDefense" },
+    dvLabel = false,
     dvs = {
       { key = "attack", col = 1 },
       { key = "defense", col = 2 },
