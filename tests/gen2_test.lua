@@ -680,4 +680,206 @@ do
   T.eq(viaSet[1] and viaSet[1][2], wantY, "on both axes")
 end
 
+-- ------- Gen 2 art is coloured by the palette it is DRAWN THROUGH
+--
+-- The bug this pins reached the repo owner through a green suite: all 91
+-- checks passed while the whole screen rendered black and white on Crystal.
+-- No unit test can see colour, so this asserts the MECHANISM instead --
+-- that the Gen 2 draws are wrapped in a bound palette and the Gen 1 draws
+-- are not, and that the wrapper is scoped to the image blits alone.
+--
+-- love_stub has no newShader, so GbcPalette.available() is false under it
+-- and the production guard would take its fallback arm on every path,
+-- observable and unobservable alike.  So GbcPalette itself is swapped for a
+-- recorder around a real screen draw -- the same monkeypatch-around-a-
+-- captured-draw shape the clip-rect cases above use.
+do
+  local GbcPalette = require("src.render.GbcPalette")
+
+  -- data/pokemon/palettes.asm ships only the middle two colours of a pic;
+  -- Palettes.monColors is what brackets them with white and black.
+  local PALS = {
+    partyMenu = {
+      { { 255, 255, 255 }, { 255, 173, 82 }, { 173, 82, 0 }, { 0, 0, 0 } },
+      { { 255, 255, 255 }, { 82, 173, 255 }, { 0, 82, 173 }, { 0, 0, 0 } },
+    },
+    pokemon = {
+      FIXMON_A = { normal = { { 200, 100, 50 }, { 100, 50, 25 } },
+                   shiny = { { 50, 200, 100 }, { 25, 100, 50 } } },
+    },
+  }
+  local ICONS = {
+    species = { FIXMON_A = "ICON_FOX" },
+    icons = { ICON_FOX = { image = "x/fox.png" } },
+  }
+
+  -- ---- the two lookups, on both arms of the seam
+  local seam1, seam2 = Engine.new(false), Engine.new(true)
+  local palGame = { data = { gen2Palettes = PALS } }
+
+  T.eq(seam1:iconColors(palGame), nil,
+    "a Gen 1 seam names no icon palette, even over data that has one: " ..
+    "Red's colour is an SGB zone applied after the frame, not at the draw")
+  T.eq(seam2:iconColors(palGame), PALS.partyMenu[1],
+    "the Gen 2 seam names PartyMenuOBPals' first entry, which is what " ..
+    "InitPartyMenuOBPals puts in OBJ 0 for every icon in the list")
+  T.eq(seam2:iconColors({ data = {} }), nil,
+    "and nothing at all on a boot whose palettes never loaded")
+
+  T.eq(seam1:monColors(palGame, { species = "FIXMON_A" }), nil,
+    "a Gen 1 seam names no pic palette either")
+  local mc = seam2:monColors(palGame, { species = "FIXMON_A" })
+  T.eq(mc and #mc, 4, "the Gen 2 seam names a four-entry pic palette")
+  T.eq(mc and mc[1][1], 255, "white brackets the pair the cart ships")
+  T.eq(mc and mc[2][1], 200, "then the species' own two colours")
+  T.eq(mc and mc[3][1], 100, "in order")
+  T.eq(mc and mc[4][1], 0, "and black closes it")
+  local shinyColors = seam2:monColors(palGame,
+    { species = "FIXMON_A", shiny = true })
+  T.eq(shinyColors and shinyColors[2][1], 50,
+    "a shiny takes its own row, the way GetPlayerOrMonPalettePointer reads " ..
+    "wTempMonDVs for the box pic")
+  T.eq(seam2:monColors(palGame, {}), nil,
+    "a mon with no species has no palette, and asking does not raise")
+  T.eq(seam2:monColors({ data = {} }, { species = "FIXMON_A" }), nil,
+    "nor does a boot with no palettes at all")
+
+  -- ---- withColors: a nil palette is the Gen 1 case and must cost nothing
+  local ran = false
+  seam1:withColors(nil, function() ran = true end)
+  T.check(ran, "a nil palette still runs the draw, unwrapped")
+  T.eq(love.graphics.getShader(), nil, "and binds no shader to run it under")
+  ran = false
+  seam2:withColors(PALS.partyMenu[1], function() ran = true end)
+  T.check(ran,
+    "and a runtime that refused the shader draws grey art rather than none")
+
+  -- ---- the same screen, drawn through both seams
+  --
+  -- Under a generation=2 load Gen2Compat facades src.ui.PartyMenu onto
+  -- Gold's module, which carries no drawIcon STATIC -- the warning the
+  -- loader prints -- so the Gen 1 arm's delegate is missing here, and only
+  -- here: a real Red boot has no facade and calls the real one.  Standing
+  -- one in costs the comparison nothing, because what is compared is
+  -- whether a palette was BOUND, which happens above the delegate.
+  -- Counting its calls is what keeps the Gen 1 run from passing by drawing
+  -- no icons at all.
+  local Delegate = require("src.ui.PartyMenu")
+  local realDelegate = Delegate.drawIcon
+  local realG = love.graphics
+  local realAvailable, realWith = GbcPalette.available, GbcPalette.with
+  local bound, depth, fillsInside, fills, delegated
+
+  local function drawWith(screen)
+    bound, depth, fillsInside, fills, delegated = {}, 0, 0, 0, 0
+    Delegate.drawIcon = function() delegated = delegated + 1 end
+    GbcPalette.available = function() return true end
+    GbcPalette.with = function(colors, body)
+      bound[#bound + 1] = colors
+      depth = depth + 1
+      local ok, err = pcall(body)
+      depth = depth - 1
+      if not ok then error(err, 0) end
+      return true
+    end
+    local shim = setmetatable({
+      rectangle = function()
+        fills = fills + 1
+        if depth > 0 then fillsInside = fillsInside + 1 end
+      end,
+    }, { __index = realG })
+    love.graphics = shim
+    local ok, err = pcall(screen.draw, screen)
+    love.graphics = realG
+    GbcPalette.available, GbcPalette.with = realAvailable, realWith
+    Delegate.drawIcon = realDelegate
+    if not ok then error(err, 0) end
+  end
+
+  Data.gen2Palettes, Data.gen2Icons = PALS, ICONS
+  local function mon(level)
+    return { species = "FIXMON_A", level = level, hp = 20, dvs = {},
+             statExp = {}, moves = {},
+             stats = { hp = 20, attack = 12, defense = 12, speed = 12,
+                       special = 12 } }
+  end
+  local game = {
+    data = Data,
+    save = { party = { mon(9), mon(8) }, currentBox = 1,
+             boxes = { { mon(12), mon(11), mon(10) } } },
+    input = { wasPressed = function() return false end,
+              isDown = function() return false end },
+  }
+  local function newScreen(id, row)
+    local screen
+    game.stack = { push = function(_, st) screen = st end,
+                   pop = function() end }
+    local menu = Screens.get(game, id).new(game)
+    for _, item in ipairs(menu.items) do
+      if item.label == row then item.onSelect() end
+    end
+    screen.counter = 0
+    return screen
+  end
+
+  local function tally()
+    local icons, pics, other = 0, 0, 0
+    for _, colors in ipairs(bound) do
+      if colors == PALS.partyMenu[1] then
+        icons = icons + 1
+      elseif colors and colors[2] and colors[2][1] == 200 then
+        pics = pics + 1
+      else
+        other = other + 1
+      end
+    end
+    return icons, pics, other
+  end
+
+  -- The mod registers BOTH ids on every boot (main.lua's two register
+  -- calls), so the SAME screen can be built over the SAME data with each
+  -- seam -- which makes the generation the only difference between these
+  -- two runs.
+  drawWith(newScreen("Gen2BoxMenu", "WITHDRAW POKéMON"))
+  local g2Icons, g2Pics, g2Other = tally()
+  local g2Fills, g2Inside = fills, fillsInside
+  T.eq(g2Icons, 3,
+    "the Gen 2 box view binds the icon palette once per icon it draws")
+  T.eq(g2Pics, 1, "and the focused mon's own colours around the front pic")
+  T.eq(g2Other, 0, "and nothing else")
+  T.eq(delegated, 0,
+    "drawing its own icons rather than through Red's delegate")
+
+  drawWith(newScreen("BoxMenu", "WITHDRAW POKéMON"))
+  T.eq(#bound, 0,
+    "the Gen 1 box view binds no palette at all -- PaletteFX colours that " ..
+    "frame afterwards, and a bound palette here would be a Red regression")
+  T.eq(delegated, 3,
+    "while drawing the same three icons, through the delegate that does " ..
+    "Red's own OBP0 bake -- so the count above is not vacuous")
+  T.check(fills > 0, "and the same fills")
+
+  -- Deposit draws the party row through the same seam, and that row IS the
+  -- party list PartyMenuOBPals was loaded for.
+  drawWith(newScreen("Gen2BoxMenu", "DEPOSIT POKéMON"))
+  local depIcons, depPics = tally()
+  T.eq(depIcons, 5,
+    "the Gen 2 deposit view binds the icon palette for the party row too")
+  T.eq(depPics, 1, "with the focused party mon's colours on the pic")
+
+  drawWith(newScreen("BoxMenu", "DEPOSIT POKéMON"))
+  T.eq(#bound, 0, "and the Gen 1 deposit view binds none of it")
+  T.eq(delegated, 5, "over the same five icons")
+
+  -- The wrapper goes around the BLITS and nothing else.  The shader reads a
+  -- shade index out of the red channel and love.graphics.rectangle samples a
+  -- 1x1 white texture, so an empty-slot dot or a cursor stub drawn inside a
+  -- bound palette would come back as that palette's colour 0 instead of
+  -- black.
+  T.check(g2Fills > 0, "the Gen 2 box view fills rectangles")
+  T.eq(g2Inside, 0, "and not one of them lands inside a bound palette")
+
+  Data.gen2Palettes, Data.gen2Icons = nil, nil
+end
+
 T.finish("bills_pc_plus gen2")
