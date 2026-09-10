@@ -111,6 +111,61 @@ function Engine:ensureStats(data, mon)
   require("src.battle.gen2.Mon").refreshStats(mon, data)
 end
 
+-- Rules Gold puts on a deposit that Red has none of.
+--
+-- BoxSession writes the sparse box directly rather than calling
+-- Boxes.deposit, and that is deliberate: the helper overflows into the next
+-- box with room, which is right for a caught mon with nowhere to go and
+-- wrong here, because the player paged to THIS box and pressed A.  On Gen 1
+-- going around it costs nothing -- src/pokemon/Boxes.lua has no rules to
+-- skip.  On Gold src.pokemon.Boxes facades src/core/gen2/Boxes.lua, which
+-- has three, and going around the helper went around them too.
+--
+-- MAIL is the one that matters here.  sPartyMail is six structs keyed by
+-- PARTY SLOT (src/core/gen2/Mail.lua:84-96), so a boxed mon has nowhere to
+-- keep a letter, and BillsPC_CheckMon's .HasMail arm refuses the deposit
+-- with PCString_RemoveMail rather than stranding it
+-- (src/core/gen2/Boxes.lua:94-97).  Red has no mail at all, so the Gen 1 arm
+-- has nothing to say and the caller's own rules stand alone.
+function Engine:canDeposit(save, partySlot)
+  if not self.gen2 then return true end
+  local mon = save and save.party and save.party[partySlot]
+  if require("src.core.gen2.Mail").monHoldsMail(mon) then
+    return false, "has_mail"
+  end
+  return true
+end
+
+-- Called the instant a mon is taken OUT of the party, by anything that takes
+-- one out.
+--
+-- The refusal above only protects the DEPARTING mon's letter.  This protects
+-- everyone else's: sPartyMail is keyed by slot, so RemoveMonFromPartyOrBox's
+-- "Mail time!" tail moves every struct after the departing slot up one
+-- (src/core/gen2/Mail.lua:131-143), and Boxes.deposit calls it immediately
+-- after its own table.remove.  Skipping it left every letter behind the
+-- deposited mon attached to the wrong Pokemon -- silent save-state
+-- corruption, invisible until the player opened the mailbox.
+function Engine:leaveParty(save, partySlot)
+  if not self.gen2 then return end
+  require("src.core.gen2.Mail").removeSlot(save, partySlot)
+end
+
+-- Called on a mon the instant it lands in a box.
+--
+-- SendGetMonIntoFromBox's PC_DEPOSIT arm ends in
+-- RestorePPOfDepositedPokemon (engine/pokemon/move_mon.asm:633-635), and
+-- CalcTempmonStats refills a BOXMON from MAXHP, because Gold's box_struct
+-- has neither MON_HP nor MON_STATUS to store the difference in
+-- (macros/ram.asm:7-26).  Gen 1's box_struct DOES hold current HP -- which
+-- is why BoxSession:withdraw only has to rebuild the stat block -- so
+-- healing on the way in is right on Gold and would be a behaviour change on
+-- Red.  Hence the seam rather than an unconditional call.
+function Engine:enterBox(mon)
+  if not self.gen2 then return end
+  require("src.core.gen2.Boxes").enterBox(mon)
+end
+
 -- Gold's icon sheets are 16px wide with the two animation frames stacked
 -- vertically at a 16px pitch, which is how src/ui/gen2/PartyMenu.lua quads
 -- them (newQuad(0, frame * 16, ...)).

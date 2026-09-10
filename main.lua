@@ -623,6 +623,10 @@ return function(mod)
     last_mon = "You can't deposit\nthe last POKéMON!",
     no_mon = "What? There are\nno POKéMON here!",
     storage_full = "There is no room\nleft in storage!",
+    -- Gen 2 only: PCString_RemoveMail, one short line rather than a
+    -- two-line refusal, because a boxed mon has no sPartyMail slot to keep a
+    -- letter in.  Red never produces this reason -- it has no mail at all.
+    has_mail = "Remove MAIL.",
   }
 
   function Screen:say(reason)

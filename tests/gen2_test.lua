@@ -424,4 +424,132 @@ do
     "and the whole data table second, the way Gold's own callers pass it")
 end
 
+-- ------- deposit rules Gold enforces and Red has none of
+--
+-- BoxSession writes the sparse box directly instead of calling
+-- Boxes.deposit -- deliberately, because that helper overflows into the next
+-- box with room and the player paged to THIS box.  On Gen 1 that skips
+-- nothing: src/pokemon/Boxes.lua has no rules.  On Gold src.pokemon.Boxes
+-- facades src/core/gen2/Boxes.lua, which has some, and going around the
+-- helper went around them too.
+do
+  local BoxSession = dofile("mods/bills_pc_plus/BoxSession.lua")
+  local Mail = require("src.core.gen2.Mail")
+
+  local function goldGame()
+    return {
+      data = goldData(),
+      save = {
+        party = { goldMon("GOLDMON_A"), goldMon("GOLDMON_B"),
+                  goldMon("GOLDMON_A") },
+        boxes = nil, currentBox = 1,
+      },
+    }
+  end
+
+  -- sPartyMail is six structs keyed by PARTY SLOT, so every letter behind a
+  -- departing mon moves up one -- RemoveMonFromPartyOrBox's "Mail time!"
+  -- tail, which Boxes.deposit calls immediately after its own table.remove.
+  -- BoxSession's bare table.remove had no counterpart, so slot 2's letter
+  -- stayed on slot 2 and landed on the mon that had been slot 3.
+  do
+    local game = goldGame()
+    Mail.state(game.save).party[2] = { author = "MOM", message = "hi" }
+    Mail.state(game.save).party[3] = { author = "BILL", message = "bye" }
+    local session = BoxSession.new(game, Engine.new(true))
+    T.eq(session:deposit(1, 1), true, "depositing party slot 1 succeeds")
+    local letters = Mail.state(game.save).party
+    T.eq(letters[1] and letters[1].author, "MOM",
+      "the letter behind the deposited mon moved up with its mon")
+    T.eq(letters[2] and letters[2].author, "BILL", "and so did the next one")
+    T.eq(letters[3], nil, "leaving the tail slot empty")
+    T.eq(game.save.party[1] and game.save.party[1].species, "GOLDMON_B",
+      "and MOM's letter is still on the mon it belongs to")
+  end
+
+  -- BillsPC_CheckMon's .HasMail arm: a boxed mon has no sPartyMail slot, so
+  -- the deposit is refused with PCString_RemoveMail rather than stranding
+  -- the letter.  Checked last, after the box-full and last-mon refusals,
+  -- which is where the cart checks it.
+  do
+    local game = goldGame()
+    -- ItemIsMail is a linear search of MailItems and is the only definition
+    -- of "this is mail" on the cart, so the fixture holds a real one.
+    game.save.party[1].item = "FLOWER_MAIL"
+    local session = BoxSession.new(game, Engine.new(true))
+    local ok, reason = session:deposit(1, 1)
+    T.eq(ok, false, "a mon holding MAIL is refused")
+    T.eq(reason, "has_mail", "with the reason the screen turns into a message")
+    T.eq(#game.save.party, 3, "and nothing left the party")
+    T.eq(session:count(1), 0, "and nothing reached the box")
+    T.eq(session.dirty, false, "and the refusal did not dirty the session")
+  end
+
+  -- Gold's box_struct has neither MON_HP nor MON_STATUS (macros/ram.asm
+  -- :7-26), so SendGetMonIntoFromBox restores PP and CalcTempmonStats
+  -- refills from MAXHP on the way in.  Gen 1's box_struct DOES hold current
+  -- HP, so this must stay a no-op there.
+  do
+    local game = goldGame()
+    local mon = game.save.party[1]
+    mon.hp, mon.maxHp, mon.status = 3, 24, "PSN"
+    mon.moves = { { id = "FIX_TACKLE", pp = 1, maxPp = 35 } }
+    local session = BoxSession.new(game, Engine.new(true))
+    T.eq(session:deposit(1, 1), true, "the deposit succeeds")
+    T.eq(mon.hp, 24, "a mon entering a Gold box is refilled from MAXHP")
+    T.eq(mon.status, nil, "its status is cleared")
+    T.eq(mon.moves[1].pp, 35, "and its PP restored")
+  end
+
+  -- Gen 1 keeps exactly the behaviour it had: no mail rule, no heal.
+  do
+    local g1 = {
+      data = Data,
+      save = {
+        party = { { species = "FIXMON_A", level = 5, hp = 3, maxHp = 20,
+                    status = "PSN", dvs = {}, statExp = {},
+                    moves = { { id = "FIX_TACKLE", pp = 1, maxPp = 35 } } },
+                  { species = "FIXMON_B", level = 5, hp = 10, dvs = {},
+                    statExp = {}, moves = {} } },
+        boxes = nil, currentBox = 1,
+      },
+    }
+    local mon = g1.save.party[1]
+    mon.item = "FLOWER_MAIL"
+    local session = BoxSession.new(g1, Engine.new(false))
+    T.eq(session:deposit(1, 1), true,
+      "Gen 1 deposits a mon holding what Gold would call mail: Red has none")
+    T.eq(mon.hp, 3, "and does not refill it -- Gen 1's box_struct holds HP")
+    T.eq(mon.status, "PSN", "nor clear its status")
+    T.eq(mon.moves[1].pp, 1, "nor restore its PP")
+  end
+
+  -- The seam arms themselves, so a regression names which one moved.
+  do
+    local e1, e2 = Engine.new(false), Engine.new(true)
+    local save = { party = { { species = "GOLDMON_A",
+                               item = "FLOWER_MAIL" } } }
+    T.eq(e1:canDeposit(save, 1), true, "the Gen 1 arm allows every deposit")
+    local ok, reason = e2:canDeposit(save, 1)
+    T.eq(ok, false, "the Gen 2 arm refuses a mail holder")
+    T.eq(reason, "has_mail", "naming the reason")
+    T.eq(e2:canDeposit({ party = { { species = "GOLDMON_A" } } }, 1), true,
+      "and allows one without mail")
+
+    local g1save = { mail = { party = { [1] = { author = "MOM" } }, box = {} } }
+    e1:leaveParty(g1save, 1)
+    T.eq(g1save.mail.party[1] and g1save.mail.party[1].author, "MOM",
+      "the Gen 1 arm touches no mail: Red has none to shift")
+    local g2save = { mail = { party = { [2] = { author = "MOM" } }, box = {} } }
+    e2:leaveParty(g2save, 1)
+    T.eq(g2save.mail.party[1] and g2save.mail.party[1].author, "MOM",
+      "the Gen 2 arm shifts every letter behind the slot up one")
+
+    local kept = { hp = 3, maxHp = 20, status = "PSN", moves = {} }
+    e1:enterBox(kept)
+    T.eq(kept.hp, 3, "the Gen 1 arm leaves a mon entering a box alone")
+    T.eq(kept.status, "PSN", "status included")
+  end
+end
+
 T.finish("bills_pc_plus gen2")

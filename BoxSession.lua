@@ -54,6 +54,11 @@ local DEFAULT_ENGINE = {
     require("src.pokemon.Stats")
       .ensure(data.pokemon and data.pokemon[mon.species], mon)
   end,
+  -- Red has no mail and its box_struct holds current HP, so both of these
+  -- are genuinely nothing on Gen 1 rather than an unimplemented stub.
+  canDeposit = function() return true end,
+  leaveParty = function() end,
+  enterBox = function() end,
 }
 
 -- Order-sensitive digest of the mons a layout was recorded against.
@@ -329,8 +334,22 @@ function BoxSession:deposit(partySlot, boxNum)
   local s = self.sparse[boxNum]
   local slot = firstFree(s)
   if not slot then return false, "box_full" end
+  -- Last, matching where BillsPC_CheckMon puts its own .HasMail arm: after
+  -- the box-full and last-mon refusals, so the more general reasons win the
+  -- message.  Nothing has moved yet, so a refusal here leaves the party
+  -- exactly as it was.
+  local allowed, refusal = self.engine:canDeposit(self.save, partySlot)
+  if not allowed then return false, refusal end
   s[slot] = mon
   table.remove(self.save.party, partySlot)
+  -- Writing the sparse box directly skips Boxes.deposit, and on Gold that
+  -- helper is not just a placement: sPartyMail is keyed by party SLOT, so
+  -- every letter behind the departing mon has to move up one or it ends up
+  -- attached to the wrong Pokemon.  Seam, because Red has no mail to move.
+  self.engine:leaveParty(self.save, partySlot)
+  -- and Gold's box_struct has no MON_HP or MON_STATUS, so a mon entering a
+  -- box is restored on the way in.  Gen 1's does, so this is a no-op there.
+  self.engine:enterBox(mon)
   -- PIKAHAPPY_DEPOSITED (engine/pokemon/bills_pc.asm:247), through the
   -- seam: Gold's happiness enum has no storage event, and the direct call
   -- this replaced read nil on Gold and raised -- one line after
