@@ -568,7 +568,14 @@ return function(mod)
       local t = def and def.types
       if t and t[1] then
         local line = TypeChart.displayName(t[1])
-        if t[2] then
+        -- PrintMonTypes' .hide_type_2: a single-typed mon really carries its
+        -- type twice, and the cart blanks the second name rather than
+        -- printing it again -- which is why src/ui/gen2/SummaryMenu.lua:452
+        -- drops the second whenever the two match.  Gen 2's extracted
+        -- pokemon.lua keeps both bytes, so CYNDAQUIL arrives as
+        -- { FIRE, FIRE } and read this line "FIRE/FIRE"; Gen 1's collapses
+        -- them to one entry, so t[2] is nil there and nothing moves.
+        if t[2] and t[2] ~= t[1] then
           line = line .. "/" .. TypeChart.displayName(t[2])
         end
         Font.draw(line, Layout.STATS_X, typeY)

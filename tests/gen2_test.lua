@@ -98,6 +98,67 @@ T.check(gen2Grid and gen2Grid.engine,
 T.eq(gen2Grid.engine:summaryScreenId(), "Gen2SummaryMenu",
   "Gold's, so STATS there opens Gold's summary")
 
+-- PrintMonTypes' .hide_type_2.  Gold's extracted pokemon.lua keeps BOTH type
+-- bytes, exactly as the cart stores them, so a single-typed mon arrives as
+-- { FIRE, FIRE } -- where Gen 1's extractor collapses the pair to one entry.
+-- The strip printed t[1] .. "/" .. t[2] whenever t[2] existed, so every
+-- mono-typed mon on a Gen 2 boot read "FIRE/FIRE".  The cart blanks the
+-- second name when the two match (src/ui/gen2/SummaryMenu.lua:452), and so
+-- does the strip now; Gen 1 has no t[2] at all, so nothing there moves.
+do
+  local Font = require("src.render.Font")
+
+  local function typeLineFor(types)
+    Data.pokemon.FIXMON_C = Data.pokemon.FIXMON_C or {}
+    Data.pokemon.FIXMON_C.types = types
+    local g = {
+      data = Data,
+      save = { party = {}, currentBox = 1, boxes = { {
+        { species = "FIXMON_C", level = 12, hp = 20, dvs = {}, statExp = {},
+          moves = {},
+          stats = { hp = 20, attack = 12, defense = 12,
+                    speed = 12, special = 12 } },
+      } } },
+      stack = { push = function() end, pop = function() end },
+      input = { wasPressed = function() return false end,
+                isDown = function() return false end },
+    }
+    local captured
+    g.stack = { push = function(_, st) captured = st end,
+                pop = function() end }
+    local menu = Screens.get(g, "Gen2BoxMenu").new(g)
+    for _, item in ipairs(menu.items) do
+      if item.label == "WITHDRAW POKéMON" then item.onSelect() end
+    end
+    captured.counter = 0
+    local seen = {}
+    local real = Font.draw
+    Font.draw = function(text, x, y)
+      seen[#seen + 1] = tostring(text)
+      return real(text, x, y)
+    end
+    local ok, err = pcall(captured.draw, captured)
+    Font.draw = real
+    if not ok then error(err, 0) end
+    local line
+    for _, t in ipairs(seen) do
+      if t:find("^[A-Z]+/?[A-Z]*$") and t ~= "PARTY" and t ~= "DV"
+        and t ~= "ATK" and t ~= "DEF" and t ~= "SPD" and t ~= "SPC" then
+        line = t
+      end
+    end
+    return line
+  end
+
+  T.eq(typeLineFor({ "GRASS", "GRASS" }), "GRASS",
+    "a mon carrying its one type twice prints it once")
+  T.eq(typeLineFor({ "GRASS", "POISON" }), "GRASS/POISON",
+    "a genuinely dual-typed mon still prints both")
+  T.eq(typeLineFor({ "GRASS" }), "GRASS",
+    "and Gen 1's collapsed single entry is unchanged")
+  Data.pokemon.FIXMON_C.types = nil
+end
+
 -- Gen 1 delegates to the engine's own drawIcon, unchanged, so Red/Blue/Yellow
 -- keep today's output exactly -- including the OBP0 bake for built-in icon
 -- classes, which only that path knows how to do.
