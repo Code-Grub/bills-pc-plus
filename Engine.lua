@@ -35,9 +35,18 @@ local Assets = require("src.render.Assets")
 local G2_ICON = 16
 
 -- Resolve a Gen 2 mon's icon image.  Gold keys per-species sheets off
--- icons.species and stores the path at icons.icons[id].image, where Gen 1
--- keys nine shared CLASS names and stores the path directly -- so this is a
--- different lookup, not a different argument order.
+-- data.gen2Icons.species and stores the path at
+-- data.gen2Icons.icons[id].image -- NOT data.icons, which is the Gen 1
+-- table of nine shared CLASS names with the path stored directly.
+-- src/core/Game2.lua:1036-1037 namespaces the whole family (gen2Icons,
+-- gen2Palettes, ...) precisely so it cannot collide with the Gen 1 keys of
+-- the same idea; src/ui/gen2/PartyMenu.lua:144 reads the same field
+-- (`opts.icons or data.gen2Icons`), which this mirrors.
+--
+-- ReadMonMenuIcon (engine/gfx/mon_icons.asm): an EGG slot draws ICON_EGG --
+-- the `cp EGG / jr z, .egg` arm -- before any species lookup runs, so a
+-- stored egg must resolve to the egg sheet rather than the species it will
+-- hatch into.  Mirrors src/ui/gen2/PartyMenu.lua:752-757.
 --
 -- The path goes out through Sprites.iconPath before loading, which is the
 -- one icon API both generations genuinely share: Gold's own iconFor makes
@@ -46,9 +55,10 @@ local G2_ICON = 16
 -- cannot touch.
 function Engine:iconImageFor(game, mon)
   local data = game and game.data
-  local icons = data and data.icons
+  local icons = data and data.gen2Icons
   if not (icons and mon and mon.species) then return nil end
-  local iconId = icons.species and icons.species[mon.species]
+  local iconId = mon.isEgg and "ICON_EGG"
+    or (icons.species and icons.species[mon.species])
   local entry = iconId and icons.icons and icons.icons[iconId]
   local path = entry and entry.image
   path = Sprites.iconPath(data, mon, path, { name = iconId })

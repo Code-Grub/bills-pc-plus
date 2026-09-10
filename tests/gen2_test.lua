@@ -93,15 +93,56 @@ do
   T.eq(seen and seen.forceAlt, true, "animation rides forceAlt instead")
 end
 
--- Gen 2 resolves its own icon: per-species two-frame sheets keyed on
--- icons.species, not Gen 1's nine shared classes, and no PartyMenu instance
--- to borrow.  A species the table does not know draws nothing rather than
--- raising.
+-- Gen 2 resolves its own icon from data.gen2Icons -- per-species sheets,
+-- not Gen 1's nine shared classes -- and Gold namespaces that table apart
+-- from data.icons precisely so the two cannot collide (src/core/Game2.lua
+-- :1036-1037, "Gen 2-only tables the menus read... nothing collides with
+-- the Gen 1 keys of the same idea").  A fixture holding one real
+-- species->sheet mapping, placed under BOTH keys, pins that the seam reads
+-- only the one Gold actually populates: reading data.icons instead would
+-- pass just as easily as reading gen2Icons if this test only checked for
+-- a truthy image, which is exactly how the wrong key reached review once
+-- already.
 do
+  local sheet = {
+    species = { CYNDAQUIL = "ICON_FOX" },
+    icons = { ICON_FOX = { image = "x/fox.png" } },
+  }
   local e = Engine.new(true)
-  local unknown = e:iconImageFor({ data = { icons = { species = {}, icons = {} } } },
+
+  local resolved = e:iconImageFor({ data = { gen2Icons = sheet } },
+    { species = "CYNDAQUIL" })
+  T.check(resolved, "a known species under gen2Icons resolves to an image")
+  T.eq(resolved and resolved.path, "x/fox.png", "specifically its own sheet")
+
+  local wrongKey = e:iconImageFor({ data = { icons = sheet } },
+    { species = "CYNDAQUIL" })
+  T.eq(wrongKey, nil,
+    "the same table under the Gen 1 key (icons, not gen2Icons) resolves to " ..
+    "nothing -- a regression back to that key must fail loudly here")
+
+  local unknown = e:iconImageFor({ data = { gen2Icons = sheet } },
     { species = "NOSUCHMON" })
   T.eq(unknown, nil, "an unknown species resolves to no image, and does not raise")
+end
+
+-- ReadMonMenuIcon (engine/gfx/mon_icons.asm): an EGG slot draws ICON_EGG --
+-- the `cp EGG / jr z, .egg` arm -- before any species lookup runs, so a
+-- stored egg must draw the egg sheet, never the icon of whatever it will
+-- hatch into.  Mirrors src/ui/gen2/PartyMenu.lua:752-757.
+do
+  local sheet = {
+    species = { CYNDAQUIL = "ICON_FOX" },
+    icons = { ICON_FOX = { image = "x/fox.png" },
+              ICON_EGG = { image = "x/egg.png" } },
+  }
+  local e = Engine.new(true)
+  local game = { data = { gen2Icons = sheet } }
+
+  local egg = e:iconImageFor(game, { species = "CYNDAQUIL", isEgg = true })
+  T.check(egg, "an egg resolves to an image")
+  T.eq(egg and egg.path, "x/egg.png",
+    "specifically the egg sheet, not CYNDAQUIL's own icon")
 end
 
 T.finish("bills_pc_plus gen2")
