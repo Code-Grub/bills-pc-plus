@@ -151,6 +151,59 @@ return function(mod)
     end
   end
 
+  -- Clip to a rect given in THIS screen's own 160x144 pixels.
+  --
+  -- love.graphics.setScissor takes window pixels and is documented as
+  -- unaffected by the active transform, so passing it a screen-space rect
+  -- only works where the two coincide.  On Gen 1 they usually do: the
+  -- renderer draws the state stack into a 160x144 canvas with an identity
+  -- transform (src/render/Renderer.lua:362).  On Gen 2 they never do --
+  -- Game2 draws the same stack translated to the letterbox origin and
+  -- scaled to fit the window (src/core/Game2.lua:1862-1866) -- so
+  -- setScissor(8, 16, 16, 16) clipped a 16x16 patch of the window's
+  -- top-left corner, outside the picture entirely, and every scissored
+  -- draw on this screen went nowhere: the whole icon grid, the party row,
+  -- and the name plate.  Everything drawn outside a scissor -- the frames,
+  -- the cursor, the stats strip, the front sprite -- came out fine, which
+  -- is exactly the shape of the bug.
+  --
+  -- Mapping the rect through the live transform is one path that is right
+  -- on both generations rather than a branch on the seam: under an identity
+  -- transform it hands back the rect unchanged, so the Gen 1 picture is
+  -- byte-identical.  It also fixes the same latent gap on Gen 1's own wide
+  -- UI surface, where a classic screen is offset before it draws
+  -- (src/core/Game.lua:698-700) and a raw rect would miss by that offset.
+  --
+  -- intersectScissor rather than setScissor, and the previous rect restored
+  -- rather than cleared, so a clip the engine set around us still holds.
+  local function clip(x, y, w, h)
+    local G = love.graphics
+    local prev = { G.getScissor() }
+    local ax, ay, bx, by = x, y, x + w, y + h
+    if G.transformPoint then
+      ax, ay = G.transformPoint(x, y)
+      bx, by = G.transformPoint(x + w, y + h)
+    end
+    local x1, y1 = math.floor(math.min(ax, bx)), math.floor(math.min(ay, by))
+    local x2, y2 = math.ceil(math.max(ax, bx)), math.ceil(math.max(ay, by))
+    -- A zero-size rect clips everything, which is what an off-screen cell
+    -- should do; a negative one raises out of love.graphics, so floor it.
+    if G.intersectScissor then
+      G.intersectScissor(x1, y1, math.max(0, x2 - x1), math.max(0, y2 - y1))
+    else
+      G.setScissor(x1, y1, math.max(0, x2 - x1), math.max(0, y2 - y1))
+    end
+    return prev
+  end
+
+  local function unclip(prev)
+    if prev[1] then
+      love.graphics.setScissor(prev[1], prev[2], prev[3], prev[4])
+    else
+      love.graphics.setScissor()
+    end
+  end
+
   -- A built-in icon draws exactly 16x16, but a mod-supplied image draws
   -- whole, at whatever size the file is (src/ui/PartyMenu.lua:240-242), so
   -- an icon pack shipping 32x32 art would bleed over its neighbours.
@@ -160,9 +213,9 @@ return function(mod)
   -- (PartyMenu.lua:211) to pick an animation speed from HP bar colour,
   -- which is meaningless for a stored mon.  forceAlt animates instead.
   local function drawIconClamped(self, mon, x, y, animated)
-    love.graphics.setScissor(x, y, Layout.CELL, Layout.CELL)
+    local prev = clip(x, y, Layout.CELL, Layout.CELL)
     self.engine:drawIcon(self.game, mon, x, y, animated)
-    love.graphics.setScissor()
+    unclip(prev)
   end
 
   local function blink(self)
@@ -259,12 +312,10 @@ return function(mod)
   -- no per-cell scissor: the caller already clips the whole grid rect, and
   -- a slide only ever runs a handful of frames, so a mod-supplied icon
   -- oversized enough to bleed past its neighbour is a cosmetic nit for a
-  -- twentieth of a second, not worth a second nested scissor (drawIconClamped
-  -- already resets scissor to none on exit, so nesting it inside an outer
-  -- clip would drop the outer one).  Never animated: a blinking cursor icon
-  -- mid-slide would imply the cursor itself is moving, and it is not.  Empty
-  -- cells get their dot here too, so it does not pop in only once the slide
-  -- finishes.
+  -- twentieth of a second, not worth a second nested scissor.  Never
+  -- animated: a blinking cursor icon mid-slide would imply the cursor itself
+  -- is moving, and it is not.  Empty cells get their dot here too, so it does
+  -- not pop in only once the slide finishes.
   local function drawBoxIcons(self, box, dx, dy)
     for i = 1, Layout.COLS * Layout.ROWS do
       local mon = box[i]
@@ -288,7 +339,7 @@ return function(mod)
       local w = Layout.COLS * Layout.CELL
       local h = Layout.ROWS * Layout.CELL
       local progress = t.frame / t.total
-      love.graphics.setScissor(Layout.GRID_X, Layout.GRID_Y, w, h)
+      local prev = clip(Layout.GRID_X, Layout.GRID_Y, w, h)
       if t.axis == "x" then
         local advance = t.dir * w * progress
         drawBoxIcons(self, t.oldBox, -advance, 0)
@@ -298,7 +349,7 @@ return function(mod)
         drawBoxIcons(self, t.oldBox, 0, -advance)
         drawBoxIcons(self, box, 0, t.dir * h - advance)
       end
-      love.graphics.setScissor()
+      unclip(prev)
       return
     end
     for i = 1, Layout.COLS * Layout.ROWS do
@@ -403,8 +454,7 @@ return function(mod)
     else
       nameX = Layout.SPRITE_CX - math.floor(nameW / 2)
     end
-    love.graphics.setScissor(Layout.PANEL_X, Layout.PLATE_Y,
-                             Layout.PANEL_W, 16)
+    local prev = clip(Layout.PANEL_X, Layout.PLATE_Y, Layout.PANEL_W, 16)
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.rectangle("fill", Layout.SPRITE_CX - math.floor(plateW / 2),
       Layout.PLATE_Y, plateW, 16)
@@ -413,7 +463,7 @@ return function(mod)
     Font.draw(levelText, Layout.SPRITE_CX - math.floor(levelW / 2),
       Layout.PLATE_Y + 8)
     love.graphics.setColor(1, 1, 1, 1)
-    love.graphics.setScissor()
+    unclip(prev)
   end
 
   -- The four stats the strip tabulates, header text and save key in the same
