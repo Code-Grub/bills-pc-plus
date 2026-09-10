@@ -592,7 +592,7 @@ return function(mod)
           if not ok then self:say(reason) end
         end },
       { label = "STATS", keepOpen = true, onSelect = function()
-          mod.ui.push(self.game, self.engine:summaryScreenId(), mon)
+          self.engine:openSummary(mod.ui, self.game, mon, self.session.save)
         end },
       { label = "RELEASE", onSelect = function()
           self.game.stack:push(mod.ui.TextBox.new(self.game,

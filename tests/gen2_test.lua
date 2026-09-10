@@ -30,6 +30,38 @@ local gen2 = Engine.new(true)
 T.eq(gen2.gen2, true, "a Gen 2 seam knows it is Gen 2")
 T.eq(gen2:summaryScreenId(), "Gen2SummaryMenu", "and opens Gold's summary")
 
+-- ...and hands that screen the arguments its constructor actually takes.
+-- Gen 1's SummaryMenu.new(game, mon) is positional; Gold's is
+-- SummaryMenu.new(game, opts) and reads opts.mon, so the mon passed
+-- positionally there landed nowhere and the screen fell back to the party --
+-- showing the wrong Pokemon, with no onClose, so B could not leave it.
+do
+  local function capture(engine)
+    local seen
+    local ui = { push = function(g, id, arg) seen = { id = id, arg = arg } end }
+    local game = { stack = { pop = function() end } }
+    local mon = { species = "PIKACHU" }
+    local save = { party = {} }
+    engine:openSummary(ui, game, mon, save)
+    return seen, mon, save
+  end
+
+  local g1, g1mon = capture(Engine.new(false))
+  T.eq(g1 and g1.id, "SummaryMenu", "Gen 1 opens Red's summary")
+  T.eq(g1 and g1.arg, g1mon,
+    "with the mon passed positionally, the way src/ui/BoxMenu.lua does")
+
+  local g2, g2mon, g2save = capture(Engine.new(true))
+  T.eq(g2 and g2.id, "Gen2SummaryMenu", "Gen 2 opens Gold's")
+  T.check(type(g2 and g2.arg) == "table" and g2.arg.mon ~= nil,
+    "with an opts table, not the bare mon")
+  T.eq(g2 and g2.arg and g2.arg.mon, g2mon,
+    "carrying the mon the cursor was on under opts.mon")
+  T.eq(g2 and g2.arg and g2.arg.save, g2save, "and the session's save")
+  T.check(type(g2 and g2.arg and g2.arg.onClose) == "function",
+    "and an onClose, the only thing SummaryMenu:close() calls")
+end
+
 -- The seam only reaches the Screen as newGrid's fourth argument -- newGrid is
 -- defined outside the factory, so it cannot capture the upvalue.  A nil there
 -- stays invisible until a stored mon's STATS row fires, so open the grid the

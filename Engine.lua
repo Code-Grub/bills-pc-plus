@@ -25,6 +25,35 @@ function Engine:summaryScreenId()
   return self.gen2 and "Gen2SummaryMenu" or "SummaryMenu"
 end
 
+-- Open that screen on a stored mon.
+--
+-- The id alone is not enough, because the two constructors take different
+-- arguments.  Gen 1's is SummaryMenu.new(game, mon) -- the mon table itself,
+-- positionally (src/ui/SummaryMenu.lua:35), which is what src/ui/BoxMenu.lua's
+-- own STATS row hands it.  Gold's is SummaryMenu.new(game, opts) and reads
+-- opts.mon (src/ui/gen2/SummaryMenu.lua:262, :279), so passing the mon
+-- positionally there does NOT raise -- it silently misses every field and
+-- falls through to `opts.party or save.party`, putting the FIRST PARTY MEMBER
+-- on screen instead of the mon the cursor was on.  Two further fields ride the
+-- same table: opts.save, and opts.onClose, which is the only thing
+-- SummaryMenu:close() calls (:716-718) -- without it B does nothing and the
+-- summary can never be left.  src/ui/gen2/BoxMenu.lua:358-363 passes exactly
+-- these three, and this mirrors it.
+--
+-- `ui` is mod.ui rather than a require of src.ui.Screens: a mod reaches the
+-- registry through its own facade, and the seam has no mod handle of its own.
+function Engine:openSummary(ui, game, mon, save)
+  if not self.gen2 then
+    ui.push(game, "SummaryMenu", mon)
+    return
+  end
+  ui.push(game, "Gen2SummaryMenu", {
+    mon = mon,
+    save = save,
+    onClose = function() game.stack:pop() end,
+  })
+end
+
 local PartyMenu = require("src.ui.PartyMenu")
 local Sprites = require("src.pokemon.Sprites")
 local Assets = require("src.render.Assets")
