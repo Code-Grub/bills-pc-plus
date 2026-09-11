@@ -17,55 +17,55 @@ Free box paging that never writes your save · grab-and-place rearranging · an 
 ---
 
 Bill's PC+ replaces the built-in PC box screen with a grid interface. Browse and
-rearrange your boxes freely — the PC never writes your save at all, so nothing
-interrupts you and nothing is decided for you.
+rearrange your boxes freely. The PC never writes your save at all, so
+nothing interrupts you and nothing is decided for you.
 
 <p align="center">
-  <img src="images/demo_box_v5.gif" width="480" alt="Box view: the 5x4 grid with gaps, the selected Pokemon's sprite and stats — cursor blinks, MOVE and page"/><br/>
-  <sub>Box view — free paging, grab-and-place with gaps</sub>
+  <img src="images/demo_box_v6.gif" width="480" alt="Box view: the 5x4 grid with gaps beside the selected Pokemon's sprite and stats, showing the cursor blink, MOVE and paging"/><br/>
+  <sub>Box view: free paging, grab-and-place with gaps</sub>
 </p>
 
 <p align="center">
-  <img src="images/demo_deposit_v5.gif" width="480" alt="Deposit view: the party row under the box grid — party cursor and destination paging"/><br/>
-  <sub>Deposit view — party row and destination paging</sub>
+  <img src="images/demo_deposit_v6.gif" width="480" alt="Deposit view: the party row under the box grid, showing the party cursor and destination paging"/><br/>
+  <sub>Deposit view: party row and destination paging</sub>
 </p>
 
 ## Features
 
-- **Free box paging** — walk the cursor off the left or right edge of the grid
+- **Free box paging:** walk the cursor off the left or right edge of the grid
   to page between boxes. No prompt, no save, no interruption.
-- **Grab-and-place, with gaps** — pick a Pokemon up with `A`, drop it on any
+- **Grab-and-place, with gaps:** pick a Pokemon up with `A`, drop it on any
   cell. Swap if the slot is occupied, place if it is free, and the rest stay
   exactly where they were. Cross-box moves just work.
-- **Inline art and stats panel** — the selected Pokemon's front sprite and
+- **Inline art and stats panel:** the selected Pokemon's front sprite and
   condensed stats (level, HP, ATK/DEF/SPD/SPC) sit beside the grid, and keep
   describing the Pokemon in hand while you carry it.
-- **DV spread, if you want it** — the hidden numbers breeders sort boxes by,
+- **DV spread, if you want it:** the hidden numbers breeders sort boxes by,
   on the bottom line of the stats strip. It is on by default and switchable
   from OPTIONS → MODS → BILL'S PC PLUS → DV DISPLAY, which takes effect on
   the spot without leaving the PC. The shiny mark is not covered by the
   toggle: that stays on the plate either way.
-- **Deposit mode** — your party appears as a row under the box; pick one and
+- **Deposit mode:** your party appears as a row under the box; pick one and
   page the destination box independently.
-- **The PC never writes your save** — not when you page, not when you move a
+- **The PC never writes your save:** not when you page, not when you move a
   Pokemon, not on the way out. Whatever you did rides along with your next
   ordinary save, so saving stays where you chose to put it: the START menu.
   Nothing else writes it either: while the PC is open, a save attempted from
   anywhere else is refused, the way vanilla simply had no way to save in
   there. It is not thrown away, though. If an autosave mod tried to save
   while you were in the PC, that save happens the moment you leave. The
-  flip side is real — quit without saving and the PC visit goes
+  flip side is real. Quit without saving and the PC visit goes
   with everything else you did since.
-- **Readable cursor** — blinking corner marks on the selected cell, holding
+- **Readable cursor:** blinking corner marks on the selected cell, holding
   steady over a carry's landing spot, readable on empty slots.
-- **Stays Gen 1** — everything is drawn from the game itself: the same font,
+- **Stays Gen 1.** Everything is drawn from the game itself: the same font,
   window borders, palette and sound effects as the vanilla PC, so the grid
   reads like something the Game Boy could have shipped.
 
 ## Install
 
 **Mod manager:** grab the release zip from
-[Releases](../../releases) and import it — FIND MODS in the launcher, or drop
+[Releases](../../releases) and import it with FIND MODS in the launcher, or drop
 the zip into the save directory's `imports/mods/` folder and rescan.
 
 **Manual:** unzip the release into the game's `mods/bills_pc_plus/` directory.
@@ -107,8 +107,8 @@ and depositing is `B` then pick.
 ## Known limitations
 
 - **Gaps are a display layer, not cartridge data.** The Gen 1 save format
-  stores a count byte followed by that many contiguous Pokemon — no hole
-  encoding — so the layout rides in the engine save beside it. Exporting a
+  stores a count byte followed by that many contiguous Pokemon and has no
+  hole encoding, so the layout rides in the engine save beside it. Exporting a
   .sav packs each box in reading order; importing one refills that box
   solid. A mon caught since your last visit fills the leftmost gap and
   moves nobody. Trading does not disturb the boxes at all: a trade swaps
@@ -141,10 +141,10 @@ and depositing is `B` then pick.
 
 ## Version
 
-Newest release: [releases/latest](https://github.com/Code-Grub/bills-pc-plus/releases/latest) — full history in [CHANGELOG.md](CHANGELOG.md).
+Newest release: [releases/latest](https://github.com/Code-Grub/bills-pc-plus/releases/latest). Full history in [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 
-MIT — see [LICENSE](LICENSE). Fork it, bundle it, build on it; just keep the
+MIT. See [LICENSE](LICENSE). Fork it, bundle it, build on it; just keep the
 notice. The mod draws its font, borders, palette and sounds from the game at
 runtime and ships no game assets of its own.
