@@ -3,6 +3,15 @@
 Written in the style described in [docs/changelog-style.md](docs/changelog-style.md):
 what changed for the player, with the reasoning left in the commit history.
 
+## 0.15.1
+
+- The sprite panel shows each Pokemon in its own colours. Every Pokemon was
+  drawn in the same purple and orange before, whatever it actually was.
+- Full-colour menu icons keep their colours on Gold, Silver and Crystal
+  instead of being repainted in the party menu's four. This one waits on an
+  engine build that carries the icon true-colour flag; on current builds
+  nothing changes.
+
 ## 0.15.0
 
 ### Added
