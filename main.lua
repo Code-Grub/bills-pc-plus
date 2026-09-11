@@ -81,8 +81,22 @@ return function(mod)
   -- is what ListMenu's generic full-screen menus get (SET_PAL_GENERIC)
   -- and the palette the engine already trusts for mon icons: the party
   -- screen's icon column is MEWMON too.
+  -- ...and the panel pic takes its own species palette back out of that
+  -- whole-screen zone.  MEWMON is right for the GRID -- the party screen's
+  -- icon column is MEWMON too -- but it is also what PaletteFX.monPal
+  -- returns for an unknown species, so leaving the pic inside it painted
+  -- every mon in the unknown colours: white / salmon / purple under
+  -- ADVANCED, whatever was actually on the cursor.  SummaryMenu, the screen
+  -- this panel imitates, keeps MEWMON for its no-mon case only and carves
+  -- the pic out with monPal; that is the split reproduced here, which is
+  -- also what the Gen 2 arm has always done (Engine:monColors).
   function Screen:sgbPalettes(game)
-    return PaletteFX.wholeNamed(game.data, "MEWMON")
+    local zones = PaletteFX.wholeNamed(game.data, "MEWMON")
+    local mon = self:focused()
+    local pal = mon and PaletteFX.monPal(game.data, mon.species)
+    if not (zones and pal) then return zones end
+    zones[#zones + 1] = PaletteFX.zone(pal, Layout.spriteZone())
+    return zones
   end
 
   -- The mon the panel and stats strip describe: whatever the cursor is on,

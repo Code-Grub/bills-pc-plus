@@ -73,6 +73,28 @@ function Layout.spritePos(pw, ph)
   return Layout.SPRITE_CX - math.floor(pw / 2), Layout.SPRITE_BASELINE - ph
 end
 
+-- The pic's tile block, for the SGB zone that colours it on Gen 1.
+--
+-- A whole-screen zone alone paints the pic with whatever palette the screen
+-- declared, and MEWMON -- what this screen declares, and what PaletteFX.monPal
+-- returns for an UNKNOWN species -- then reads as the mod colouring every mon
+-- wrong.  SummaryMenu carves the same block back out of its own screen with
+-- the species palette (src/ui/SummaryMenu.lua:32); this is that rect here.
+--
+-- Fixed at 7x7 whatever the pic's real size, exactly as SummaryMenu's is: a
+-- Gen 1 front pic is at most 56x56 and spritePos centres anything smaller
+-- inside the same block, so a 5x5 pic's margin is bare white either way.
+-- Sitting on SPRITE_BASELINE under a PLATE_Y plate it clears, the block owns
+-- no chrome -- and shade 0/3 stay white/black across every named palette, so
+-- the name and level above it would not shift even if it did.
+Layout.SPRITE_MAX = 56
+
+function Layout.spriteZone()
+  local x, y = Layout.spritePos(Layout.SPRITE_MAX, Layout.SPRITE_MAX)
+  local tx, ty = math.floor(x / 8), math.floor(y / 8)
+  return tx, ty, tx + Layout.SPRITE_MAX / 8 - 1, ty + Layout.SPRITE_MAX / 8 - 1
+end
+
 -- Below the stats rather than above them, so the stats strip never shifts
 -- when deposit mode opens.
 Layout.PARTY_X, Layout.PARTY_Y = 8, 120
