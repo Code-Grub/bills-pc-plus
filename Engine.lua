@@ -282,7 +282,22 @@ function Engine:iconImageFor(game, mon)
     or (icons.species and icons.species[mon.species])
   local entry = iconId and icons.icons and icons.icons[iconId]
   local path = entry and entry.image
-  path = Sprites.iconPath(data, mon, path, { name = iconId })
+  -- Only the image is a property of the path, so trueColor is returned
+  -- rather than cached beside it: iconPath runs the pokemon.icon hook every
+  -- call with this mon in ctx, and a hook may hand two mons the same file
+  -- and flag only one of them.  Same reason the front pic reads its flag
+  -- fresh in main.lua.
+  --
+  -- The record's own flag is read HERE rather than taken from iconPath's
+  -- second return, because an engine that predates that return hands back
+  -- one value and nil would read as "not true colour" -- silently binding a
+  -- four-shade palette over full-colour art on exactly the builds most
+  -- players are on.  The hook's answer wins where the engine offers one.
+  local trueColor = entry and entry.trueColor and true or false
+  local hookedPath, hookedFlag = Sprites.iconPath(data, mon, path,
+    { name = iconId, trueColor = trueColor })
+  path = hookedPath
+  if hookedFlag ~= nil then trueColor = hookedFlag end
   if not path then return nil end
   local cache = self._iconCache
   if not cache then cache = {}; self._iconCache = cache end
@@ -293,7 +308,7 @@ function Engine:iconImageFor(game, mon)
     cache[path] = cached
   end
   if not cached then return nil end
-  return cached
+  return cached, trueColor
 end
 
 -- --------------------------------------------------------------- palettes
@@ -401,13 +416,18 @@ function Engine:drawIcon(game, mon, x, y, animated)
     PartyMenu.drawIcon(game, mon, x, y, false, 0, animated)
     return
   end
-  local image = self:iconImageFor(game, mon)
+  local image, trueColor = self:iconImageFor(game, mon)
   if not image then return end
   local iw, ih = image:getDimensions()
   local frame = animated and 1 or 0
   local quad = love.graphics.newQuad(0, frame * G2_ICON,
     G2_ICON, G2_ICON, iw, ih)
-  self:withColors(self:iconColors(game), function()
+  -- trueColor art is exempt here for the reason it is exempt on the pic:
+  -- a sheet that is already real colour is the colour it means to be, and
+  -- Gold's four-shade palette bound over it would destroy that.  Gen 1
+  -- says the same thing to PaletteFX with a rect instead of a nil palette.
+  local colors = not trueColor and self:iconColors(game) or nil
+  self:withColors(colors, function()
     love.graphics.draw(image, quad, x, y)
   end)
 end

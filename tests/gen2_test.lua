@@ -1275,4 +1275,50 @@ do
   end
 end
 
+-- ------- a trueColor icon sheet skips the Gen 2 palette
+-- Gold colours an icon by the palette it is drawn THROUGH, so the seam binds
+-- PartyMenuOBPals around every icon blit.  That palette is four shades; art
+-- flagged trueColor is already the colour it means to be, and binding one
+-- over it destroys exactly what the flag asks to keep.  Gen 1 answers the
+-- same question with a rect reported to PaletteFX; this is that answer on
+-- the other arm of the seam.
+do
+  local GbcPalette = require("src.render.GbcPalette")
+  local realAvailable, realWith = GbcPalette.available, GbcPalette.with
+  local realG = love.graphics
+  local bound = {}
+  local function iconsWith(flag)
+    return { species = { FIXMON_A = "ICON_FOX" },
+             icons = { ICON_FOX = { image = "x/fox.png", trueColor = flag } } }
+  end
+  local tcPals = { partyMenu = { { { 8, 8, 8 }, { 9, 9, 9 },
+                                   { 10, 10, 10 }, { 0, 0, 0 } } } }
+  local tcSeam = Engine.new(true)
+  local tcMon = { species = "FIXMON_A" }
+
+  local function boundFor(flag)
+    bound = {}
+    GbcPalette.available = function() return true end
+    GbcPalette.with = function(colors, body)
+      bound[#bound + 1] = colors
+      body()
+      return true
+    end
+    love.graphics = setmetatable({ draw = function() end },
+                                 { __index = realG })
+    local ok, err = pcall(tcSeam.drawIcon, tcSeam,
+      { data = { gen2Palettes = tcPals, gen2Icons = iconsWith(flag) } },
+      tcMon, 8, 8, false)
+    love.graphics = realG
+    GbcPalette.available, GbcPalette.with = realAvailable, realWith
+    if not ok then error(err, 0) end
+    return #bound
+  end
+
+  T.eq(boundFor(nil), 1,
+    "a plain Gen 2 icon is drawn through the party-menu palette")
+  T.eq(boundFor(true), 0,
+    "a trueColor icon sheet binds none: four shades would destroy it")
+end
+
 T.finish("bills_pc_plus gen2")
