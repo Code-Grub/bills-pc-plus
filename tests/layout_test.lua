@@ -211,4 +211,21 @@ local top56 = L.SPRITE_BASELINE - 56
 T.eq(top56, 24, "the tallest sprite starts at y=24")
 T.check(top56 >= A_TOP, "and stays inside box A's interior")
 
+-- ------- the SGB zone that colours the panel pic
+-- The pic is coloured by a zone, not by the draw, so a zone that misses the
+-- pic leaves it wearing the screen's whole-screen MEWMON -- the bug this
+-- rect exists to fix -- and one that overshoots LEFT would repaint the
+-- grid's icons with a single mon's palette.  Both edges are load-bearing.
+do
+  local zx1, zy1, zx2, zy2 = L.spriteZone()
+  local px, py = L.spritePos(L.SPRITE_MAX, L.SPRITE_MAX)
+  T.eq(zx1 * 8, px, "the pic zone's left edge is the tallest pic's left edge")
+  T.eq(zy1 * 8, py, "the pic zone's top edge is the tallest pic's top edge")
+  T.eq((zx2 + 1) * 8, px + L.SPRITE_MAX, "and its right edge, the pic's right")
+  T.eq((zy2 + 1) * 8, py + L.SPRITE_MAX, "and its bottom edge, the pic's floor")
+  T.check(zx1 * 8 >= L.PANEL_X and (zx2 + 1) * 8 <= L.PANEL_X + L.PANEL_W,
+    "the zone stays inside the panel, so no icon takes a mon's own palette")
+  T.eq(zy1, 3, "the block starts on row 3, clear of the identity plate")
+end
+
 T.finish("bills_pc_plus layout")

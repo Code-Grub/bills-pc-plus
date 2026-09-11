@@ -1301,6 +1301,39 @@ T.eq(#zones, #expected, "one whole-screen zone, like ListMenu's generic")
 T.eq(zones[1].x, 0, "the zone starts at the canvas edge")
 T.eq(zones[1].w, 160, "the zone spans the full canvas width")
 
+
+-- ------- the panel pic wears the mon's own palette, not the generic one
+-- SummaryMenu -- the screen this panel imitates -- paints the whole screen
+-- with one palette and then carves the pic back out with PaletteFX.monPal
+-- (src/ui/SummaryMenu.lua:32), keeping MEWMON for the no-mon case ONLY.
+-- MEWMON is monPal's "unknown species" fallback, so a screen that declares
+-- it whole-screen and stops paints every mon in the unknown colours --
+-- white / salmon / purple {115,33,165} under ADVANCED, whatever the mon is.
+do
+  Data.palettes.pokemon = Data.palettes.pokemon or {}
+  Data.palettes.pokemon.FIXMON_A = "FIXPAL"
+  Data.palettes.palettes.FIXPAL =
+    { { 255, 255, 255 }, { 8, 8, 8 }, { 9, 9, 9 }, { 0, 0, 0 } }
+  local picGame = {
+    data = Data,
+    save = { party = {}, boxes = { { monOfSpecies("FIXMON_A", 5) } },
+             currentBox = 1 },
+    stack = { push = function() end, pop = function() end },
+    input = { wasPressed = function() return false end,
+              isDown = function() return false end },
+  }
+  local picGrid = openGrid(picGame, "WITHDRAW POKéMON")
+  local P = require("src.render.PaletteFX")
+  local want = P.monPal(Data, "FIXMON_A")
+  T.check(want ~= nil and want ~= P.pal(Data, "MEWMON"),
+    "the fixture species resolves a palette distinct from MEWMON")
+  local found
+  for _, z in ipairs(picGrid:sgbPalettes(picGame) or {}) do
+    if z.colors == want then found = z end
+  end
+  T.check(found ~= nil,
+    "the panel pic gets a zone carrying the mon's own palette, not MEWMON")
+end
 -- ------- the sprite cache keeps images, not palette decisions
 
 -- Sprites.path resolves the path AND a trueColor flag, and it runs the
