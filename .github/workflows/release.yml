@@ -25,10 +25,19 @@ name: Release
 on:
   push:
     branches: [master]
+    # Paths that cannot change the archive. .gitattributes marks images/,
+    # docs/, tools/ and tests/ export-ignore, so git archive drops them and a
+    # commit touching only those produces a zip byte-identical to the last
+    # release -- a new version number over the same artifact. Keep this list
+    # and .gitattributes in step: whatever the archive excludes belongs here.
     paths-ignore:
       - '.github/**'
       - '**.md'
       - 'LICENSE'
+      - 'images/**'
+      - 'docs/**'
+      - 'tools/**'
+      - 'tests/**'
   workflow_dispatch:
     inputs:
       version:
