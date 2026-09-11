@@ -1,12 +1,21 @@
 # Separate Box vs Deposit demos for Bill's PC Plus.
 # Runs two deterministic drivers and assembles two GIFs:
-#   images/demo_box.gif      - withdraw / grab-and-place / paging
-#   images/demo_deposit.gif  - party row / destination paging / deposit
-# Usage: powershell -File tools\make_demos.ps1
+#   images/demo_box<Suffix>.gif      - withdraw / grab-and-place / paging
+#   images/demo_deposit<Suffix>.gif  - party row / destination paging / deposit
+# Usage: powershell -File tools\make_demos.ps1 -Game C:\g2dev
+#
+# -Suffix is a version tag on the output names, and it exists because GitHub
+# caches raw asset URLs: replacing a GIF in place serves the stale one to
+# anyone who has already loaded the README.  Bump it when re-recording.
+#
+# -Delay is only the fallback hold now.  Each frame carries its own hold in
+# its filename (frame_<seq>_h<cs>.png) so motion can roll at ~60ms while the
+# posed beats rest -- see Get-FrameDelays below and tools/record_box.lua.
 param(
   [string]$Game = "$(Split-Path (Split-Path $PSScriptRoot -Parent) -Parent)\game",
   [string]$Love = "$(Split-Path (Split-Path $PSScriptRoot -Parent) -Parent)\tools\love\love.exe",
   [string]$OutDir = "$(Split-Path $PSScriptRoot -Parent)\images",
+  [string]$Suffix = "_v5",
   [int]$Scale = 3,
   [int]$Delay = 40,
   [int]$Loop = 0
@@ -28,12 +37,33 @@ function Get-CanvasBounds([string]$path) {
   $r = @{ Left=$left; Top=$top; Width=$right-$left+1; Height=$bot-$top+1; Img=$img }
   return $r
 }
-function New-DelayProperty([int]$count, [int]$delay) {
+# 0x5100 is already a per-frame array - GDI+ reads the i'th 4-byte slot for the
+# i'th frame - so $delay may be either a single centisecond value applied to
+# every frame (the original behaviour, and still the default) or a $count-long
+# list of per-frame values.  The drivers supply the latter: see Get-FrameDelays.
+function New-DelayProperty([int]$count, $delay) {
   $pi = [System.Runtime.Serialization.FormatterServices]::GetUninitializedObject([System.Drawing.Imaging.PropertyItem])
   $pi.Id = 0x5100; $pi.Type = 4; $pi.Len = $count * 4
   $bytes = New-Object byte[] ($count * 4)
-  for ($i=0; $i -lt $count; $i++) { [BitConverter]::GetBytes([int]$delay).CopyTo($bytes, $i*4) }
+  if ($delay -is [System.Array]) {
+    if ($delay.Count -ne $count) { throw "delay list has $($delay.Count) entries for $count frames" }
+    for ($i=0; $i -lt $count; $i++) { [BitConverter]::GetBytes([int]$delay[$i]).CopyTo($bytes, $i*4) }
+  } else {
+    for ($i=0; $i -lt $count; $i++) { [BitConverter]::GetBytes([int]$delay).CopyTo($bytes, $i*4) }
+  }
   $pi.Value = $bytes; return $pi
+}
+# Per-frame hold, carried over from the driver in the filename.  The scheme is
+# documented at the top of tools/record_box.lua and both sides must agree on
+# it: frame_<seq>_h<cs>.png holds that one frame for <cs> centiseconds, and a
+# name with no _h suffix falls back to -Delay.  Motion frames come through at
+# ~6cs so a page slide plays as a slide; posed beats come through long.
+function Get-FrameDelays($frames, [int]$fallback) {
+  $out = New-Object System.Collections.Generic.List[int]
+  foreach ($f in $frames) {
+    if ($f.Name -match '_h(\d+)\.png$') { $out.Add([int]$Matches[1]) } else { $out.Add($fallback) }
+  }
+  return ,$out.ToArray()
 }
 function New-LoopProperty([int]$loop) {
   $pi = [System.Runtime.Serialization.FormatterServices]::GetUninitializedObject([System.Drawing.Imaging.PropertyItem])
@@ -82,8 +112,9 @@ function Invoke-Demo([string]$driver, [string]$out) {
   }
   $outDir = Split-Path $out -Parent; if ($outDir -and -not (Test-Path $outDir)) { New-Item -ItemType Directory -Path $outDir -Force | Out-Null }
   $enc = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.MimeType -eq "image/gif" }
+  $delays = Get-FrameDelays $frames $Delay
   $first = [System.Drawing.Bitmap]::FromFile($paths[0])
-  $first.SetPropertyItem((New-DelayProperty $paths.Count $Delay))
+  $first.SetPropertyItem((New-DelayProperty $paths.Count $delays))
   $first.SetPropertyItem((New-LoopProperty $Loop))
   $ep = New-Object System.Drawing.Imaging.EncoderParameters(1)
   $ep.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter([System.Drawing.Imaging.Encoder]::SaveFlag,[long][System.Drawing.Imaging.EncoderValue]::MultiFrame)
@@ -107,9 +138,10 @@ function Invoke-Demo([string]$driver, [string]$out) {
     [Array]::Copy($bytes,$insertPos,$new,$insertPos+$loopExt.Length,$bytes.Length-$insertPos)
     [IO.File]::WriteAllBytes($out,$new)
   }
-  Write-Host "GIF -> $out ($($paths.Count) frames, loop infinite) - file:///$($out -replace '\\','/')"
+  $total = ($delays | Measure-Object -Sum).Sum
+  Write-Host "GIF -> $out ($($paths.Count) frames, $($total/100)s, loop infinite) - file:///$($out -replace '\\','/')"
 }
 
-Invoke-Demo "$PSScriptRoot\record_box.lua" "$OutDir\demo_box.gif"
-Invoke-Demo "$PSScriptRoot\record_deposit.lua" "$OutDir\demo_deposit.gif"
+Invoke-Demo "$PSScriptRoot\record_box.lua" "$OutDir\demo_box$Suffix.gif"
+Invoke-Demo "$PSScriptRoot\record_deposit.lua" "$OutDir\demo_deposit$Suffix.gif"
 Write-Host "Done. Both demos in $OutDir"
