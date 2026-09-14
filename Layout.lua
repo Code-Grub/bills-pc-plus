@@ -73,6 +73,19 @@ function Layout.spritePos(pw, ph)
   return Layout.SPRITE_CX - math.floor(pw / 2), Layout.SPRITE_BASELINE - ph
 end
 
+-- The uniform scale that fits a w x h picture inside a limit x limit square.
+-- It only ever shrinks: a picture already inside the square keeps its own
+-- pixels, because enlarging pixel art by a fraction smears it.
+--
+-- Front art from HGSS Visual Overhaul's later generations is mostly bigger
+-- than a Gen 1 pic -- 80px across for most of Gen 4, up to 153px in Gen 5 --
+-- and drawn 1:1 it would cover the identity plate and the frame.
+function Layout.fitScale(w, h, limit)
+  local span = math.max(w, h)
+  if span <= limit then return 1 end
+  return limit / span
+end
+
 -- Where the visible art sits inside one frame of a sheet: x, y, w, h
 -- relative to the frame, or nil when the frame is fully transparent.
 --
