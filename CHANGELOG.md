@@ -3,6 +3,16 @@
 Written in the style described in [docs/changelog-style.md](docs/changelog-style.md):
 what changed for the player, with the reasoning left in the commit history.
 
+## 0.15.2
+
+- Box and party icons from mods that draw bigger ones, such as HGSS Visual
+  Overhaul, are shrunk to fit their slot instead of showing as a cut-off
+  corner. They come out at half size, since a slot is only 16 pixels across.
+- With Rex's UI Overhaul installed, pressing A on a Pokemon in the box now
+  shows the MOVE / WITHDRAW menu, along with the prompts that follow it. It
+  was opening but never drawn. The PC screen now sits over the map, the way
+  Rex shows its other menus.
+
 ## 0.15.1
 
 - The sprite panel shows each Pokemon in its own colours. Every Pokemon was
