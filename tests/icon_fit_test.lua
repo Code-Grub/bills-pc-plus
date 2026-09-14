@@ -97,14 +97,25 @@ local function iconRects(grid, painter, opts)
     end,
   }, { __index = realG })
   if opts and opts.readback then
-    shim.newCanvas = function(w, h)
+    -- A canvas is really w*k x h*k texels, where k is the dpiscale the caller
+    -- passed, or opts.dpi when it passed none -- what LOVE does on a high-DPI
+    -- phone, where newCanvas defaults dpiscale to the display's scale
+    -- (src/render/PixelCanvas.lua).  opts.forceDpi models a runtime that
+    -- ignores the dpiscale it was given.
+    shim.newCanvas = function(w, h, settings)
       canvases = canvases + 1
+      local k = settings and settings.dpiscale or opts.dpi or 1
+      if opts.forceDpi then k = opts.forceDpi end
       local canvas = { w = w, h = h }
       function canvas:newImageData()
         local painted = self.painted
         return {
+          getDimensions = function()
+            return math.floor(w * k + 0.5), math.floor(h * k + 0.5)
+          end,
           getPixel = function(_, px, py)
-            local a = painted and painted.alphaAt and painted.alphaAt(px, py)
+            local a = painted and painted.alphaAt
+              and painted.alphaAt(math.floor(px / k), math.floor(py / k))
             return 1, 1, 1, a or 0
           end,
         }
@@ -323,6 +334,33 @@ do
   end, { readback = true })
   T.eq(rects[1] and fmt(rects[1]), "8,16 16x16",
     "a frame with no visible art falls back to fitting the whole frame")
+end
+
+-- ------- a high-DPI phone reads the art at the icon's own size
+-- On Android newCanvas defaults dpiscale to the display's scale, so a canvas
+-- asked for as 32x64 is 88x176 texels at 2.755.  Reading its first 32x64
+-- texels as the icon found the art in the wrong place, and 0.15.3 drew every
+-- padded icon as a misplaced sliver on a phone while desktop was fine.
+do
+  local PHONE = sheet(32, 64, { { 6, 10, 25, 29 }, { 6, 42, 25, 61 } })
+  local rects = iconRects(boxGrid(), function(game, mon, x, y)
+    love.graphics.draw(PHONE, region(0, 0, 32, 32), x, y)
+    return true
+  end, { readback = true, dpi = 3 })
+  T.eq(rects[1] and landed(rects[1], 6, 10, 20, 20), "8,16 16x16",
+    "on a 3x-density device the visible art still fills box slot 1's cell")
+end
+
+-- A runtime that hands back a readback of a different size than the icon
+-- cannot be trusted to map pixels; the whole-frame fit is the safe answer.
+do
+  local STUBBORN = sheet(32, 64, { { 6, 10, 25, 29 }, { 6, 42, 25, 61 } })
+  local rects = iconRects(boxGrid(), function(game, mon, x, y)
+    love.graphics.draw(STUBBORN, region(0, 0, 32, 32), x, y)
+    return true
+  end, { readback = true, forceDpi = 3 })
+  T.eq(rects[1] and fmt(rects[1]), "8,16 16x16",
+    "a readback that is not the icon's size falls back to fitting the whole frame")
 end
 
 T.finish("bills_pc_plus icon_fit")
