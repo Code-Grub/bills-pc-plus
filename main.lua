@@ -46,6 +46,17 @@ return function(mod)
   local optionRows = sibling("options.lua")
   if optionRows then mod.options:define(optionRows) end
 
+  -- EXTRA BOXES: 99 boxes of 20 when on, the engine's own count when off.
+  -- The original is captured before anything writes the count, so off always
+  -- means the number the engine booted with (Engine.originalBoxCount).
+  local EXTRA_BOX_COUNT = 99
+  local originalBoxCount = Engine.originalBoxCount()
+  local function applyExtraBoxes()
+    local on = mod.options:get("extra_boxes") == true
+    Engine.setBoxCount(on and EXTRA_BOX_COUNT or originalBoxCount)
+  end
+  applyExtraBoxes()
+
   -- Read per draw rather than cached on the Screen: the options row is
   -- reachable while the PC is open, and re-reading is cheap enough that
   -- the toggle lands on the next frame instead of the next visit.  nil
