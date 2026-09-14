@@ -3,6 +3,12 @@
 Written in the style described in [docs/changelog-style.md](docs/changelog-style.md):
 what changed for the player, with the reasoning left in the commit history.
 
+## 0.15.4
+
+- On phones, box and party icons from packs like HGSS Visual Overhaul show
+  properly again. 0.15.3 drew them as small, misplaced slivers on
+  high-density screens, while computers were unaffected.
+
 ## 0.15.3
 
 - Icons from packs that pad their icons, such as HGSS Visual Overhaul, now
