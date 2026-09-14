@@ -218,11 +218,50 @@ return function(mod)
     end
   end
 
+  -- The window rect one blit covers, in the caller's coordinates:
+  -- love.graphics.draw(drawable, [quad,] x, y, r, sx, sy).  A negative scale
+  -- flips about the blit's own x/y, so the far edge can sit left of it (the
+  -- engine's mirrored icons draw their second half that way).  A blit that
+  -- cannot be measured returns nil and counts as fitting: leaving it alone
+  -- is the pre-fit behaviour, and shrinking art on a guess is worse.
+  local function blitBounds(args)
+    local q = args[2]
+    local w, h, i
+    if q ~= nil and type(q) ~= "number" then
+      if not q.getViewport then return nil end
+      local _
+      _, _, w, h = q:getViewport()
+      i = 3
+    elseif args[1] and args[1].getDimensions then
+      w, h = args[1]:getDimensions()
+      i = 2
+    else
+      return nil
+    end
+    local bx, by = args[i] or 0, args[i + 1] or 0
+    local sx = args[i + 3] or 1
+    local sy = args[i + 4] or sx
+    local ex, ey = bx + w * sx, by + h * sy
+    return math.min(bx, ex), math.min(by, ey),
+           math.max(bx, ex), math.max(by, ey)
+  end
+
   -- The clamp is for the Gen 1 arm.  A built-in icon draws exactly 16x16,
-  -- but src/ui/PartyMenu.lua:240-242 draws a mod-supplied image WHOLE, at
-  -- whatever size the file is, so an icon pack shipping 32x32 art would
-  -- bleed over its neighbours.  Scissor each cell rather than trusting the
-  -- source.
+  -- but src/ui/PartyMenu.lua:289-291 draws a mod-supplied image WHOLE, at
+  -- whatever size the file is, and a mod may replace PartyMenu.drawIcon
+  -- outright.  Scissor each cell rather than trusting the source.
+  --
+  -- Scissoring alone crops, though, and a crop is the wrong answer for art
+  -- that is simply bigger.  HGSS Visual Overhaul draws a padded 32x32 frame
+  -- at (x, y) (hgss_sprites/main.lua:5680); a 16x16 clip of that is its
+  -- top-left quarter, mostly padding, so every icon read as a sliver in the
+  -- corner of its cell.  So each blit is measured as it is issued: one that
+  -- fits the cell goes out untouched (a cell-sized icon is byte-identical),
+  -- and one that does not is scaled down into the cell.  The fit is per
+  -- blit, so an icon built from several small blits that only overflow
+  -- together is not shrunk -- the scissor still contains it.  Rotation and
+  -- origin offsets are not measured; neither the engine nor any icon mod
+  -- here uses them.
   --
   -- The Gen 2 arm needs no clamp: it quads its own source to exactly
   -- G2_ICON x G2_ICON, so oversized art is cropped before it is drawn
@@ -233,10 +272,61 @@ return function(mod)
   -- selected=false on purpose: with it true, drawIcon reads mon.stats.hp
   -- (PartyMenu.lua:211) to pick an animation speed from HP bar colour,
   -- which is meaningless for a stored mon.  forceAlt animates instead.
+  -- The window rect one recorded blit covers, in the caller's coordinates:
+  -- love.graphics.draw(drawable, [quad,] x, y, r, sx, sy).  A negative scale
+  -- flips about the blit's own x/y, so the far edge can sit left of it (the
+  -- engine's mirrored icons draw their second half that way).  A blit that
+  -- cannot be measured returns nil and counts as fitting: leaving it alone
+  -- is the pre-fit behaviour, and shrinking art on a guess is worse.
+  local function blitBounds(args)
+    local q = args[2]
+    local w, h, i
+    if q ~= nil and type(q) ~= "number" then
+      if not q.getViewport then return nil end
+      local _
+      _, _, w, h = q:getViewport()
+      i = 3
+    elseif args[1] and args[1].getDimensions then
+      w, h = args[1]:getDimensions()
+      i = 2
+    else
+      return nil
+    end
+    local bx, by = args[i] or 0, args[i + 1] or 0
+    local sx = args[i + 3] or 1
+    local sy = args[i + 4] or sx
+    local ex, ey = bx + w * sx, by + h * sy
+    return math.min(bx, ex), math.min(by, ey),
+           math.max(bx, ex), math.max(by, ey)
+  end
+
+  -- One pass, each blit fitted as it is issued.  The painter runs once, as
+  -- it always did, and every blit still lands inside whatever it bound
+  -- around it -- Gold's palette shader (GbcPalette.with, Engine.lua:430) is
+  -- exactly that, and a blit issued after the painter returned would come
+  -- out grey.  Running the painter twice (measure, then draw) would keep the
+  -- shader but double every palette bind and quad allocation per frame.
   local function drawIconClamped(self, mon, x, y, animated)
+    local G = love.graphics
+    local realDraw = G.draw
+    G.draw = function(...)
+      local ax, ay, bx, by = blitBounds({ ... })
+      local span = ax and math.max(bx - ax, by - ay) or 0
+      if span <= Layout.CELL then return realDraw(...) end
+      local k = Layout.CELL / span
+      G.push()
+      G.translate(x, y)
+      G.scale(k, k)
+      G.translate(-ax, -ay)
+      realDraw(...)
+      G.pop()
+    end
     local prev = clip(x, y, Layout.CELL, Layout.CELL)
-    self.engine:drawIcon(self.game, mon, x, y, animated)
+    local ok, err = pcall(self.engine.drawIcon, self.engine, self.game, mon,
+      x, y, animated)
+    G.draw = realDraw
     unclip(prev)
+    if not ok then error(err, 0) end
   end
 
   local function blink(self)
@@ -1013,8 +1103,51 @@ return function(mod)
   -- mode that row names.  Both rows share one session, so a withdrawal and
   -- a deposit in the same PC visit accumulate into a single dirty flag and
   -- a single write on the way out.
+  -- Rex's UI Overhaul hides every stock Menu it believes it can present, but
+  -- only draws its replacement once it recognises EVERY visible screen.  The
+  -- grid is a screen it has never heard of, so the cursor menu opened over
+  -- it -- MOVE / WITHDRAW / STATS / RELEASE, the refusal boxes, the release
+  -- prompt -- was hidden and never redrawn: open, taking input, invisible.
+  --
+  -- Rex's public seam for a source mod's own screen is an API-v2 custom
+  -- surface (registerAdapter, its main.lua:3570).  Registering the grid as
+  -- one with native.policy "preserve" makes it a screen Rex recognises
+  -- without letting Rex touch its pixels, and while any surface is on the
+  -- stack Rex's canSuppressState hides nothing, so everything this screen
+  -- opens draws exactly as it does without Rex.  render draws nothing: the
+  -- surface exists to be recognised, not to be seen.
+  --
+  -- Registration happens as the grid is built rather than at load, because
+  -- mod load order is not ours to rely on and by the time anyone opens a PC
+  -- every mod has loaded.  The contract is one table for the life of the
+  -- mod: Rex re-registers whenever it is handed a different one.  With Rex
+  -- absent mod.find returns nil and none of this runs.
+  local REX_ID = "rexs_ui_overhaul"
+  local rexContract = {
+    apiVersion = 2,
+    surfaces = {
+      bills_pc_plus_grid = {
+        match = function(state) return getmetatable(state) == Screen end,
+        model = function() return {} end,
+        render = function() return true end,
+        layout = { virtualWidth = 160, virtualHeight = 144 },
+        native = { policy = "preserve" },
+      },
+    },
+  }
+
+  local function registerWithRex()
+    local handle = mod.find and mod.find(REX_ID)
+    local register = handle and handle.exports
+      and handle.exports.registerAdapter
+    if type(register) ~= "function" then return end
+    -- A refusal or a throw from Rex must never keep the PC from opening.
+    pcall(register, { owner = "bills_pc_plus", contract = rexContract })
+  end
+
   local function newGrid(game, session, mode, engine)
     assert(engine, "newGrid needs a seam")
+    registerWithRex()
     -- The cursor comes from the session, where Screen:update kept it, so a
     -- grid reopened from the menu resumes where the last one stood.
     -- partyCursor clamps to the party actually there: deposits shrink it
