@@ -336,7 +336,13 @@ return function(mod)
     local found = false
     if G.newCanvas and G.setCanvas and img.getDimensions then
       local iw, ih = img:getDimensions()
-      local okCanvas, canvas = pcall(G.newCanvas, iw, ih)
+      -- dpiscale = 1, or the readback is not the icon's pixels on a phone:
+      -- newCanvas defaults dpiscale to the display's scale, so on a 2.755
+      -- density Android device a 32x64 canvas is 88x176 texels and the scan
+      -- below read the art out of the wrong corner of it
+      -- (src/render/PixelCanvas.lua, which forces the same for the same
+      -- reason).  Desktop reports 1, which is why this only broke on device.
+      local okCanvas, canvas = pcall(G.newCanvas, iw, ih, { dpiscale = 1 })
       if okCanvas and canvas and canvas.newImageData then
         G.push("all")
         local okDraw = pcall(function()
@@ -351,7 +357,14 @@ return function(mod)
         G.pop()
         if okDraw then
           local okData, data = pcall(canvas.newImageData, canvas)
-          if okData and data then
+          -- A readback that is not exactly the icon's size cannot be mapped
+          -- pixel for pixel, whatever the runtime did with dpiscale; leave
+          -- the icon on the whole-frame fit rather than guess at a scale.
+          local dw, dh
+          if okData and data and data.getDimensions then
+            dw, dh = data:getDimensions()
+          end
+          if dw == iw and dh == ih then
             local ax, ay, aw, ah = Layout.artBounds(iw, ih, qx, qy, qw, qh,
               function(px, py)
                 local _, _, _, a = data:getPixel(px, py)
