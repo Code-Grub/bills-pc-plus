@@ -137,5 +137,90 @@ do
   run.release()
 end
 
+-- ------- turning it off hides extra boxes and never deletes them
+-- BoxSession unpacks and commits boxes 1..Boxes.COUNT only, so a visit that
+-- rearranges box 1 must leave box 60 exactly as it was.
+do
+  local run = loadWith(false)
+  local hidden = newMon(40)
+  local a, b = newMon(5), newMon(6)
+  local g = newGame(run, { party = {}, boxes = nil, currentBox = 1 })
+  Boxes.ensure(g.save)
+  g.save.boxes[1] = { a, b }
+  g.save.boxes[60] = { hidden }
+
+  local grid, menu = openGrid(g)
+  grid.session:pickUp(1, 1)
+  grid.session:drop(1, 3)
+  for _, item in ipairs(menu.items) do
+    if item.label == "SEE YA!" then item.onSelect() end
+  end
+  T.eq(#g.save.boxes[1], 2, "the visit's own rearranging still commits")
+  T.eq(g.save.boxes[60] and g.save.boxes[60][1], hidden,
+    "a Pokemon in box 60 survives a PC visit with EXTRA BOXES off")
+  T.eq(#g.save.boxes[60], 1, "and nothing else lands in its box")
+  run.release()
+end
+
+-- ------- the notice: once per visit, only when something is hidden
+local TextBox = require("src.render.TextBox")
+local realTextBoxNew = TextBox.new
+local shown = {}
+TextBox.new = function(game, text)
+  shown[#shown + 1] = text
+  return { notice = text }
+end
+
+do
+  local run = loadWith(false)
+  local g = newGame(run, { party = {}, boxes = nil, currentBox = 1 })
+  Boxes.ensure(g.save)
+  g.save.boxes[1] = { newMon(5) }
+  g.save.boxes[60] = { newMon(40) }
+  g.save.boxes[77] = { newMon(41), newMon(42) }
+
+  shown = {}
+  local grid, menu = openGrid(g)
+  grid:update(1 / 60)
+  T.eq(shown[1], "POKéMON in extra\nboxes: 3.\fTurn EXTRA BOXES\non to reach them.",
+    "opening the grid with Pokemon past box 12 names how many are hidden")
+  T.eq(g.pushed[#g.pushed] and g.pushed[#g.pushed].notice, shown[1],
+    "and pushes that notice over the grid")
+
+  grid:update(1 / 60)
+  for _, item in ipairs(menu.items) do
+    if item.label == "DEPOSIT POKéMON" then item.onSelect() end
+  end
+  g.pushed[#g.pushed]:update(1 / 60)
+  T.eq(#shown, 1, "it shows once per PC visit, not per frame or per grid")
+  run.release()
+end
+
+do
+  local run = loadWith(true)
+  local g = newGame(run, { party = {}, boxes = nil, currentBox = 1 })
+  Boxes.ensure(g.save)
+  g.save.boxes[60] = { newMon(40) }
+  shown = {}
+  local grid = openGrid(g)
+  grid:update(1 / 60)
+  T.eq(#shown, 0, "with EXTRA BOXES on nothing is hidden, so there is no notice")
+  run.release()
+end
+
+do
+  local run = loadWith(false)
+  local g = newGame(run, { party = {}, boxes = nil, currentBox = 1 })
+  Boxes.ensure(g.save)
+  g.save.boxes[1] = { newMon(5) }
+  shown = {}
+  local grid = openGrid(g)
+  grid:update(1 / 60)
+  T.eq(#shown, 0, "with no Pokemon past box 12 there is no notice")
+  run.release()
+end
+
+TextBox.new = realTextBoxNew
+
 Boxes.COUNT = 12
 T.finish("bills_pc_plus extra_boxes")

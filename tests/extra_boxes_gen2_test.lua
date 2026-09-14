@@ -109,5 +109,27 @@ do
   run.release()
 end
 
+-- ------- Gold's pre-answered grid shows the same notice
+do
+  local TextBox = require("src.render.TextBox")
+  local realNew = TextBox.new
+  local shown = {}
+  TextBox.new = function(game, text)
+    shown[#shown + 1] = text
+    return { notice = text }
+  end
+
+  local run = loadWith(false)
+  local g = newGame(run, { party = {}, boxes = {}, currentBox = 1 })
+  g.save.boxes[20] = { newMon(30) }
+  local grid = openGrid(g)
+  grid:update(1 / 60)
+  T.eq(shown[1], "POKéMON in extra\nboxes: 1.\fTurn EXTRA BOXES\non to reach them.",
+    "on gen 2 a Pokemon past box 14 is counted in the notice")
+  T.eq(g.save.boxes[20] and #g.save.boxes[20], 1, "and is still in the save")
+  run.release()
+  TextBox.new = realNew
+end
+
 Save2.NUM_BOXES, Boxes2.NUM_BOXES = 14, 14
 T.finish("bills_pc_plus extra_boxes_gen2")

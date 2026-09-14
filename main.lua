@@ -1078,8 +1078,41 @@ return function(mod)
     end
   end
 
+  -- Pokemon in boxes past the active count: what EXTRA BOXES turned off
+  -- leaves behind.  Nothing moves or deletes them (BoxSession only unpacks
+  -- and commits boxes up to Boxes.COUNT), so they are only out of reach, and
+  -- the player is told once per visit how many.  With the option on there is
+  -- no box past the count, so this is 0 and nothing shows.
+  local HIDDEN_NOTICE =
+    "POKéMON in extra\nboxes: %d.\fTurn EXTRA BOXES\non to reach them."
+
+  local function hiddenMonCount(save)
+    local n = 0
+    for index, box in pairs(save and save.boxes or {}) do
+      if type(index) == "number" and index > Boxes.COUNT
+          and type(box) == "table" then
+        n = n + #box
+      end
+    end
+    return n
+  end
+
   function Screen:update(dt)
     self.counter = self.counter + 1
+
+    -- Pushed from the grid rather than the factory: the caller pushes the
+    -- factory's result after the factory returns, so a notice pushed there
+    -- would land underneath.  The session spans every grid push in one visit,
+    -- so it remembers that the notice has been shown.
+    if not self.session.hiddenNoticeShown then
+      self.session.hiddenNoticeShown = true
+      local hidden = hiddenMonCount(self.session.save)
+      if hidden > 0 then
+        self.game.stack:push(mod.ui.TextBox.new(self.game,
+          HIDDEN_NOTICE:format(hidden)))
+        return
+      end
+    end
     local input = self.game.input
 
     -- Ticked before input, not after: startPageTransition (called from
