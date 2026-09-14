@@ -1103,8 +1103,51 @@ return function(mod)
   -- mode that row names.  Both rows share one session, so a withdrawal and
   -- a deposit in the same PC visit accumulate into a single dirty flag and
   -- a single write on the way out.
+  -- Rex's UI Overhaul hides every stock Menu it believes it can present, but
+  -- only draws its replacement once it recognises EVERY visible screen.  The
+  -- grid is a screen it has never heard of, so the cursor menu opened over
+  -- it -- MOVE / WITHDRAW / STATS / RELEASE, the refusal boxes, the release
+  -- prompt -- was hidden and never redrawn: open, taking input, invisible.
+  --
+  -- Rex's public seam for a source mod's own screen is an API-v2 custom
+  -- surface (registerAdapter, its main.lua:3570).  Registering the grid as
+  -- one with native.policy "preserve" makes it a screen Rex recognises
+  -- without letting Rex touch its pixels, and while any surface is on the
+  -- stack Rex's canSuppressState hides nothing, so everything this screen
+  -- opens draws exactly as it does without Rex.  render draws nothing: the
+  -- surface exists to be recognised, not to be seen.
+  --
+  -- Registration happens as the grid is built rather than at load, because
+  -- mod load order is not ours to rely on and by the time anyone opens a PC
+  -- every mod has loaded.  The contract is one table for the life of the
+  -- mod: Rex re-registers whenever it is handed a different one.  With Rex
+  -- absent mod.find returns nil and none of this runs.
+  local REX_ID = "rexs_ui_overhaul"
+  local rexContract = {
+    apiVersion = 2,
+    surfaces = {
+      bills_pc_plus_grid = {
+        match = function(state) return getmetatable(state) == Screen end,
+        model = function() return {} end,
+        render = function() return true end,
+        layout = { virtualWidth = 160, virtualHeight = 144 },
+        native = { policy = "preserve" },
+      },
+    },
+  }
+
+  local function registerWithRex()
+    local handle = mod.find and mod.find(REX_ID)
+    local register = handle and handle.exports
+      and handle.exports.registerAdapter
+    if type(register) ~= "function" then return end
+    -- A refusal or a throw from Rex must never keep the PC from opening.
+    pcall(register, { owner = "bills_pc_plus", contract = rexContract })
+  end
+
   local function newGrid(game, session, mode, engine)
     assert(engine, "newGrid needs a seam")
+    registerWithRex()
     -- The cursor comes from the session, where Screen:update kept it, so a
     -- grid reopened from the menu resumes where the last one stood.
     -- partyCursor clamps to the party actually there: deposits shrink it
