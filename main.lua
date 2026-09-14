@@ -57,6 +57,16 @@ return function(mod)
   end
   applyExtraBoxes()
 
+  -- The mod manager's toggle lands without a restart: ManagerState:setOption
+  -- stores the value, then emits this with { mod, key, value }.  Only this
+  -- mod's extra_boxes key re-applies; any other change leaves the count as it
+  -- is.
+  mod.events:on("mod.options_changed", function(ev)
+    if type(ev) == "table" and ev.mod == mod.id and ev.key == "extra_boxes" then
+      applyExtraBoxes()
+    end
+  end)
+
   -- Read per draw rather than cached on the Screen: the options row is
   -- reachable while the PC is open, and re-reading is cheap enough that
   -- the toggle lands on the next frame instead of the next visit.  nil

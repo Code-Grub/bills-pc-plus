@@ -111,5 +111,31 @@ do
   run.release()
 end
 
+-- ------- flipping the option in the mod manager applies at once
+-- ManagerState:setOption writes loader.modOptions and then emits
+-- mod.options_changed with { mod, key, value } (src/mods/ManagerState.lua);
+-- this does the same two things in that order.
+do
+  local run = loadWith(false)
+  local stored = run.loader.modOptions.bills_pc_plus
+  local function flip(value, payload)
+    stored.extra_boxes = value
+    run.loader.events:emit("mod.options_changed", payload)
+  end
+
+  flip(true, { mod = "bills_pc_plus", key = "extra_boxes", value = true })
+  T.eq(Boxes.COUNT, 99, "turning EXTRA BOXES on mid-game gives 99 boxes at once")
+
+  flip(false, { mod = "bills_pc_plus", key = "dv_display", value = false })
+  T.eq(Boxes.COUNT, 99, "a change to another of this mod's options leaves the count alone")
+
+  flip(false, { mod = "some_other_mod", key = "extra_boxes", value = false })
+  T.eq(Boxes.COUNT, 99, "the same key on another mod leaves the count alone")
+
+  flip(false, { mod = "bills_pc_plus", key = "extra_boxes", value = false })
+  T.eq(Boxes.COUNT, 12, "turning it off mid-game puts 12 back at once")
+  run.release()
+end
+
 Boxes.COUNT = 12
 T.finish("bills_pc_plus extra_boxes")
