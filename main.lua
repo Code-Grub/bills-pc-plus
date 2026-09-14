@@ -306,18 +306,96 @@ return function(mod)
   -- exactly that, and a blit issued after the painter returned would come
   -- out grey.  Running the painter twice (measure, then draw) would keep the
   -- shader but double every palette bind and quad allocation per frame.
+  -- Where the visible art sits in an oversized icon frame, read from the
+  -- image's own pixels.  HGSS frames are 32x32 with the art in the middle --
+  -- 22px across on the median icon -- so fitting the whole frame drew every
+  -- icon at half size.  Fitting the art draws most of them nearly twice that.
+  --
+  -- A blit carries an image and a quad, not a file, and a love Image keeps no
+  -- pixels on the CPU, so the only way to see them is to draw the image onto
+  -- a canvas and read that back.  It happens once per image and frame column
+  -- (Layout.artBounds unions the column's frames, so the second animation
+  -- frame shares the first one's answer) and the result is cached weakly on
+  -- the image, which the icon's owner caches for as long as it lives.
+  --
+  -- Anything that cannot be read -- no canvas readback on this runtime, a
+  -- draw or readback that raises, a frame with nothing visible in it -- is
+  -- cached as false, and the icon keeps the whole-frame fit.
+  local artCache = setmetatable({}, { __mode = "k" })
+
+  local function artBoundsFor(G, realDraw, img, q)
+    local qx, qy, qw, qh = q:getViewport()
+    local byImage = artCache[img]
+    if not byImage then
+      byImage = {}
+      artCache[img] = byImage
+    end
+    local key = qx .. ":" .. qw .. ":" .. qh
+    local hit = byImage[key]
+    if hit ~= nil then return hit or nil end
+    local found = false
+    if G.newCanvas and G.setCanvas and img.getDimensions then
+      local iw, ih = img:getDimensions()
+      local okCanvas, canvas = pcall(G.newCanvas, iw, ih)
+      if okCanvas and canvas and canvas.newImageData then
+        G.push("all")
+        local okDraw = pcall(function()
+          G.origin()
+          G.setScissor()
+          G.setShader()
+          G.setCanvas(canvas)
+          G.clear(0, 0, 0, 0)
+          G.setColor(1, 1, 1, 1)
+          realDraw(img, 0, 0)
+        end)
+        G.pop()
+        if okDraw then
+          local okData, data = pcall(canvas.newImageData, canvas)
+          if okData and data then
+            local ax, ay, aw, ah = Layout.artBounds(iw, ih, qx, qy, qw, qh,
+              function(px, py)
+                local _, _, _, a = data:getPixel(px, py)
+                return a
+              end)
+            if ax then found = { x = ax, y = ay, w = aw, h = ah } end
+          end
+        end
+      end
+      if okCanvas and canvas and canvas.release then canvas:release() end
+    end
+    byImage[key] = found
+    return found or nil
+  end
+
   local function drawIconClamped(self, mon, x, y, animated)
     local G = love.graphics
     local realDraw = G.draw
     G.draw = function(...)
-      local ax, ay, bx, by = blitBounds({ ... })
+      local args = { ... }
+      local ax, ay, bx, by = blitBounds(args)
       local span = ax and math.max(bx - ax, by - ay) or 0
       if span <= Layout.CELL then return realDraw(...) end
-      local k = Layout.CELL / span
+      -- Fit the visible art when it can be measured: a quad blit with a
+      -- positive scale, whose frame has something in it.  Otherwise fit the
+      -- whole blit, as before.
+      local q = args[2]
+      local sx = args[6] or 1
+      local sy = args[7] or sx
+      local art = type(q) ~= "number" and q and q.getViewport
+        and sx > 0 and sy > 0
+        and artBoundsFor(G, realDraw, args[1], q)
+      local k, ox, oy, cx, cy
+      if art then
+        k, ox, oy = Layout.artPlacement(Layout.CELL, art.w * sx, art.h * sy)
+        cx = (args[3] or 0) + art.x * sx
+        cy = (args[4] or 0) + art.y * sy
+      else
+        k, ox, oy, cx, cy = Layout.CELL / span, 0, 0, ax, ay
+      end
       G.push()
-      G.translate(x, y)
+      G.translate(x + ox, y + oy)
       G.scale(k, k)
-      G.translate(-ax, -ay)
+      G.translate(-cx, -cy)
       realDraw(...)
       G.pop()
     end
