@@ -1337,16 +1337,16 @@ end
 -- ------- the sprite cache keeps images, not palette decisions
 
 -- Sprites.path resolves the path AND a trueColor flag, and it runs the
--- pokemon.sprite hook every call with the focused mon in ctx.  A hook may
--- return the same file for two mons and still flag only one of them --
--- a palette-based shiny is exactly that shape.  Caching trueColor beside
--- the image keys a per-mon decision on a per-path key, so the second mon
--- inherits the first one's answer.
+-- pokemon.sprite hook with the mon in ctx.  A hook may return the same file
+-- for two mons and still flag only one of them -- a palette-based shiny is
+-- exactly that shape.  The panel caches per mon, so one mon's answer must
+-- never reach another mon that happens to share its file.
 local Sprites = require("src.pokemon.Sprites")
 local PaletteFX = require("src.render.PaletteFX")
 local cacheGame = {
   data = Data,
-  save = { party = {}, boxes = { { monOfSpecies("FIXMON_A", 5) } }, currentBox = 1 },
+  save = { party = {}, boxes = { { monOfSpecies("FIXMON_A", 5),
+    monOfSpecies("FIXMON_A", 6) } }, currentBox = 1 },
   stack = { push = function() end, pop = function() end },
   input = { wasPressed = function() return false end,
             isDown = function() return false end },
@@ -1360,11 +1360,13 @@ local realMark = PaletteFX.markTrueColor
 local marked = 0
 PaletteFX.markTrueColor = function(...) marked = marked + 1 return realMark(...) end
 
-cacheGrid:draw()                       -- plain mon: same path, flag false
+cacheGrid.cursor = 1
+cacheGrid:draw()                       -- first mon: shared path, flag false
 T.eq(marked, 0, "a plain mon is not marked for true colour")
 flagTrueColor = true
-cacheGrid:draw()                       -- same path, flag now true
-T.eq(marked, 1, "the flag is read fresh, not inherited from the cached path")
+cacheGrid.cursor = 2
+cacheGrid:draw()                       -- second mon: same path, flag true
+T.eq(marked, 1, "a second mon on the same file gets its own flag, not the first mon's")
 
 -- ------- the sprite cache does not grow without bound
 -- One Screen lives for the whole PC visit, and the player can walk every

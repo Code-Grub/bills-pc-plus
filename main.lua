@@ -306,18 +306,96 @@ return function(mod)
   -- exactly that, and a blit issued after the painter returned would come
   -- out grey.  Running the painter twice (measure, then draw) would keep the
   -- shader but double every palette bind and quad allocation per frame.
+  -- Where the visible art sits in an oversized icon frame, read from the
+  -- image's own pixels.  HGSS frames are 32x32 with the art in the middle --
+  -- 22px across on the median icon -- so fitting the whole frame drew every
+  -- icon at half size.  Fitting the art draws most of them nearly twice that.
+  --
+  -- A blit carries an image and a quad, not a file, and a love Image keeps no
+  -- pixels on the CPU, so the only way to see them is to draw the image onto
+  -- a canvas and read that back.  It happens once per image and frame column
+  -- (Layout.artBounds unions the column's frames, so the second animation
+  -- frame shares the first one's answer) and the result is cached weakly on
+  -- the image, which the icon's owner caches for as long as it lives.
+  --
+  -- Anything that cannot be read -- no canvas readback on this runtime, a
+  -- draw or readback that raises, a frame with nothing visible in it -- is
+  -- cached as false, and the icon keeps the whole-frame fit.
+  local artCache = setmetatable({}, { __mode = "k" })
+
+  local function artBoundsFor(G, realDraw, img, q)
+    local qx, qy, qw, qh = q:getViewport()
+    local byImage = artCache[img]
+    if not byImage then
+      byImage = {}
+      artCache[img] = byImage
+    end
+    local key = qx .. ":" .. qw .. ":" .. qh
+    local hit = byImage[key]
+    if hit ~= nil then return hit or nil end
+    local found = false
+    if G.newCanvas and G.setCanvas and img.getDimensions then
+      local iw, ih = img:getDimensions()
+      local okCanvas, canvas = pcall(G.newCanvas, iw, ih)
+      if okCanvas and canvas and canvas.newImageData then
+        G.push("all")
+        local okDraw = pcall(function()
+          G.origin()
+          G.setScissor()
+          G.setShader()
+          G.setCanvas(canvas)
+          G.clear(0, 0, 0, 0)
+          G.setColor(1, 1, 1, 1)
+          realDraw(img, 0, 0)
+        end)
+        G.pop()
+        if okDraw then
+          local okData, data = pcall(canvas.newImageData, canvas)
+          if okData and data then
+            local ax, ay, aw, ah = Layout.artBounds(iw, ih, qx, qy, qw, qh,
+              function(px, py)
+                local _, _, _, a = data:getPixel(px, py)
+                return a
+              end)
+            if ax then found = { x = ax, y = ay, w = aw, h = ah } end
+          end
+        end
+      end
+      if okCanvas and canvas and canvas.release then canvas:release() end
+    end
+    byImage[key] = found
+    return found or nil
+  end
+
   local function drawIconClamped(self, mon, x, y, animated)
     local G = love.graphics
     local realDraw = G.draw
     G.draw = function(...)
-      local ax, ay, bx, by = blitBounds({ ... })
+      local args = { ... }
+      local ax, ay, bx, by = blitBounds(args)
       local span = ax and math.max(bx - ax, by - ay) or 0
       if span <= Layout.CELL then return realDraw(...) end
-      local k = Layout.CELL / span
+      -- Fit the visible art when it can be measured: a quad blit with a
+      -- positive scale, whose frame has something in it.  Otherwise fit the
+      -- whole blit, as before.
+      local q = args[2]
+      local sx = args[6] or 1
+      local sy = args[7] or sx
+      local art = type(q) ~= "number" and q and q.getViewport
+        and sx > 0 and sy > 0
+        and artBoundsFor(G, realDraw, args[1], q)
+      local k, ox, oy, cx, cy
+      if art then
+        k, ox, oy = Layout.artPlacement(Layout.CELL, art.w * sx, art.h * sy)
+        cx = (args[3] or 0) + art.x * sx
+        cy = (args[4] or 0) + art.y * sy
+      else
+        k, ox, oy, cx, cy = Layout.CELL / span, 0, 0, ax, ay
+      end
       G.push()
-      G.translate(x, y)
+      G.translate(x + ox, y + oy)
       G.scale(k, k)
-      G.translate(-ax, -ay)
+      G.translate(-cx, -cy)
       realDraw(...)
       G.pop()
     end
@@ -479,66 +557,90 @@ return function(mod)
   -- player actually walks back and forth over, not for all 240 cells.
   local SPRITE_CACHE_MAX = 16
 
+  -- One Screen outlives the whole PC visit and the player can walk every
+  -- cell of every box, so an unbounded cache holds a love image per mon seen.
+  -- The win it exists for is revisiting a mon a few cells away, which a
+  -- small cache already covers; past the cap it drops wholesale rather than
+  -- keeping LRU bookkeeping that would cost more than the reload it saves at
+  -- this size.  Mon entries and path entries share the one table and cap.
+  local function spriteCache(self)
+    local cache = self._spriteCache
+    if not cache or self._spriteCacheN >= SPRITE_CACHE_MAX then
+      cache, self._spriteCacheN = {}, 0
+      self._spriteCache = cache
+    end
+    return cache
+  end
+
+  -- The focused mon's front picture and whether it is full colour.
+  --
+  -- First the summary screen's own picture (Engine:summarySprite), cached
+  -- per mon: building a summary screen is not something to do every frame,
+  -- and what it answers is a property of that mon.  Gen 2, or a summary
+  -- screen that could not be built, falls back to asking Sprites.path, which
+  -- is what the panel always did.  There only the image is a property of the
+  -- path: Sprites.path runs the pokemon.sprite hook with the mon in ctx, so a
+  -- hook can return one file for two mons and flag only one of them, and the
+  -- flag is read fresh on every call.
+  local function panelSprite(self, mon)
+    local hit = self._spriteCache and self._spriteCache[mon]
+    if hit == nil then
+      local img, trueColor = self.engine:summarySprite(self.game, mon)
+      hit = img and { img = img, trueColor = trueColor } or false
+      local cache = spriteCache(self)
+      cache[mon] = hit
+      self._spriteCacheN = self._spriteCacheN + 1
+    end
+    if hit then return hit.img, hit.trueColor end
+
+    local path, trueColor = Sprites.path(self.game.data, mon.species, "front",
+      { mon = mon, kind = "summary" })
+    if not path then return nil, false end
+    local cached = self._spriteCache and self._spriteCache[path]
+    if not cached then
+      local ok, img = pcall(love.graphics.newImage, path)
+      cached = { img = ok and img or nil }
+      local cache = spriteCache(self)
+      cache[path] = cached
+      self._spriteCacheN = self._spriteCacheN + 1
+    end
+    return cached.img, trueColor
+  end
+
   local function drawPanel(self)
     local mon = self:focused()
     if not mon then return end
-    local path, trueColor = Sprites.path(self.game.data, mon.species, "front",
-      { mon = mon, kind = "summary" })
-    if path then
-      -- One Screen outlives the whole PC visit and the player can walk
-      -- every cell of every box, so an unbounded cache holds a love image
-      -- per mon seen.  The win it exists for is revisiting a mon a few
-      -- cells away, which a small cache already covers; past the cap it
-      -- drops wholesale rather than keeping LRU bookkeeping that would
-      -- cost more than the reload it saves at this size.
-      local cache = self._spriteCache
-      if not cache then
-        cache, self._spriteCacheN = {}, 0
-        self._spriteCache = cache
-      end
-      local cached = cache[path]
-      if not cached then
-        if self._spriteCacheN >= SPRITE_CACHE_MAX then
-          cache, self._spriteCacheN = {}, 0
-          self._spriteCache = cache
-        end
-        local ok, img = pcall(love.graphics.newImage, path)
-        cached = { img = ok and img or nil }
-        cache[path] = cached
-        self._spriteCacheN = self._spriteCacheN + 1
-      end
-      self.sprite = cached.img
-      -- Only the image is a property of the path.  Sprites.path runs the
-      -- pokemon.sprite hook every call with the focused mon in ctx, so
-      -- trueColor is a property of this mon -- a hook can return one file
-      -- for two mons and flag only one of them.  Read it fresh.
-      self.spriteTrueColor = (cached.img and trueColor) and true or false
-      if self.sprite then
-        local sprite = self.sprite
-        local pw, ph = sprite:getDimensions()
-        local px, py = Layout.spritePos(pw, ph)
-        -- The pic is grayscale art on BOTH generations, and each colours it
-        -- its own way.  Gen 1's SGB zone does it after the fact and this
-        -- call must stay the bare draw it always was, so the seam hands
-        -- back no palette there; Gold has no such pass and needs the
-        -- species' own colours bound around the blit, or the panel renders
-        -- black and white beside a coloured Gen 1 one.
-        --
-        -- trueColor art is exempt on both.  A pokemon.sprite hook that
-        -- returned real colour art is already the colour it wants to be:
-        -- Gen 1 marks the rect so PaletteFX re-blits it unshaded, and the
-        -- Gen 2 arm must skip the shader for the same reason -- running a
-        -- four-shade palette over full-colour art would destroy it.
-        local colors = not self.spriteTrueColor
-          and self.engine:monColors(self.game, mon) or nil
-        -- SummaryMenu draws the front pic mirrored; sx = -1 anchored at the
-        -- block's right edge lands it on px..px+pw
-        self.engine:withColors(colors, function()
-          love.graphics.draw(sprite, px + pw, py, 0, -1, 1)
-        end)
-        if self.spriteTrueColor then
-          PaletteFX.markTrueColor(px, py, pw, ph)
-        end
+    local sprite, trueColor = panelSprite(self, mon)
+    self.sprite = sprite
+    self.spriteTrueColor = (sprite and trueColor) and true or false
+    if sprite then
+      -- Art bigger than a Gen 1 pic is scaled down to the panel's 56px, and
+      -- the scaled size is what gets centred and stood on the floor.
+      local pw, ph = sprite:getDimensions()
+      local k = Layout.fitScale(pw, ph, Layout.SPRITE_MAX)
+      local dw, dh = pw * k, ph * k
+      local px, py = Layout.spritePos(dw, dh)
+      -- The pic is grayscale art on BOTH generations, and each colours it
+      -- its own way.  Gen 1's SGB zone does it after the fact and this
+      -- call must stay the bare draw it always was, so the seam hands
+      -- back no palette there; Gold has no such pass and needs the
+      -- species' own colours bound around the blit, or the panel renders
+      -- black and white beside a coloured Gen 1 one.
+      --
+      -- trueColor art is exempt on both.  A picture that is already real
+      -- colour is the colour it wants to be: Gen 1 marks the rect so
+      -- PaletteFX re-blits it unshaded, and the Gen 2 arm must skip the
+      -- shader for the same reason -- running a four-shade palette over
+      -- full-colour art would destroy it.
+      local colors = not self.spriteTrueColor
+        and self.engine:monColors(self.game, mon) or nil
+      -- SummaryMenu draws the front pic mirrored; sx = -k anchored at the
+      -- block's right edge lands it on px..px+dw
+      self.engine:withColors(colors, function()
+        love.graphics.draw(sprite, px + dw, py, 0, -k, k)
+      end)
+      if self.spriteTrueColor then
+        PaletteFX.markTrueColor(px, py, dw, dh)
       end
     end
     -- Identity plate: the name and level ride above the sprite instead of

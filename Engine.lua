@@ -74,6 +74,54 @@ function Engine:openSummary(ui, game, mon, save)
   })
 end
 
+-- The front picture the summary screen would show for this mon, or nil.
+--
+-- Mods do not all reskin front pics through the pokemon.sprite hook.  HGSS
+-- Visual Overhaul answers that hook only for battles, because its later
+-- generations are animated sheets a static screen cannot draw; for the
+-- summary screen it wraps SummaryMenu.new and pins one frame of the sheet
+-- onto the finished screen (hgss_sprites/main.lua:1954-1969).  The panel
+-- used to ask Sprites.path itself, so it showed the ROM pic beside a summary
+-- screen showing HGSS art.  Taking the picture from a summary screen picks up
+-- that and any other mod that dresses the summary screen, without this mod
+-- knowing any of them by name.
+--
+-- A summary screen is built only to be read, so its side effects are
+-- fenced.  It is built from a copy of the mon: SummaryMenu.new runs
+-- Stats.ensure on whatever it is handed (src/ui/SummaryMenu.lua:45), and the
+-- stored mon is not its to touch.  Its cry is muted for the build, because
+-- with the white flash turned off it cries the moment it is constructed
+-- (:57-60).  Anything that raises -- this screen or a mod wrapped around it
+-- -- is nil, and the panel falls back to the plain path.
+--
+-- Gold has none of this: HGSS leaves Gen 2 summary pictures native, and
+-- Gold's summary screen is a different constructor with its own argument
+-- shape (see openSummary above).  Gen 2 keeps its path.
+function Engine:summarySprite(game, mon)
+  if self.gen2 then return nil end
+  local okModule, SummaryMenu = pcall(require, "src.ui.SummaryMenu")
+  if not (okModule and type(SummaryMenu) == "table"
+      and type(SummaryMenu.new) == "function") then
+    return nil
+  end
+  local copy = {}
+  for k, v in pairs(mon) do copy[k] = v end
+  if type(mon.stats) == "table" then
+    local stats = {}
+    for k, v in pairs(mon.stats) do stats[k] = v end
+    copy.stats = stats
+  end
+  local Sound = require("src.core.Sound")
+  local cry = Sound.playCry
+  Sound.playCry = function() end
+  local ok, summary = pcall(SummaryMenu.new, game, copy)
+  Sound.playCry = cry
+  if not ok or type(summary) ~= "table" or not summary.sprite then
+    return nil
+  end
+  return summary.sprite, summary.spriteTrueColor and true or false
+end
+
 -- The stats table the strip tabulates: which columns, what to call them,
 -- and which stat keys fill them.  drawStats loops over what this hands
 -- back, so main.lua never asks which generation it is drawing.

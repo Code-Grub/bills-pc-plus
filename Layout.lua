@@ -73,6 +73,57 @@ function Layout.spritePos(pw, ph)
   return Layout.SPRITE_CX - math.floor(pw / 2), Layout.SPRITE_BASELINE - ph
 end
 
+-- The uniform scale that fits a w x h picture inside a limit x limit square.
+-- It only ever shrinks: a picture already inside the square keeps its own
+-- pixels, because enlarging pixel art by a fraction smears it.
+--
+-- Front art from HGSS Visual Overhaul's later generations is mostly bigger
+-- than a Gen 1 pic -- 80px across for most of Gen 4, up to 153px in Gen 5 --
+-- and drawn 1:1 it would cover the identity plate and the frame.
+function Layout.fitScale(w, h, limit)
+  local span = math.max(w, h)
+  if span <= limit then return 1 end
+  return limit / span
+end
+
+-- Where the visible art sits inside one frame of a sheet: x, y, w, h
+-- relative to the frame, or nil when the frame is fully transparent.
+--
+-- (qx, qy, qw, qh) is the frame being drawn; alphaAt(x, y) reads a pixel of
+-- the whole sheet.  The answer is the union over EVERY frame in that column
+-- (the rows at qy's offset, stepping qh down the sheet), not just this one,
+-- so an animated icon keeps one size and position while it flips between
+-- poses instead of twitching between two crops.
+function Layout.artBounds(iw, ih, qx, qy, qw, qh, alphaAt)
+  local x0, y0, x1, y1 = qw, qh, -1, -1
+  for fy = qy % qh, ih - qh, qh do
+    for y = 0, qh - 1 do
+      for x = 0, qw - 1 do
+        if alphaAt(qx + x, fy + y) > 0 then
+          if x < x0 then x0 = x end
+          if x > x1 then x1 = x end
+          if y < y0 then y0 = y end
+          if y > y1 then y1 = y end
+        end
+      end
+    end
+  end
+  if x1 < 0 then return nil end
+  return x0, y0, x1 - x0 + 1, y1 - y0 + 1
+end
+
+-- How to place w x h art in a cell x cell square: the scale, then the x and
+-- y offset of the art's top-left corner inside the cell.  The art's larger
+-- side is scaled down to the cell and never up; it is centred across and
+-- stands on the cell's floor, the way the engine's own icons stand.  The
+-- centring offset is floored before scaling so a 1px odd margin falls on the
+-- same side for every icon.
+function Layout.artPlacement(cell, w, h)
+  local span = math.max(cell, w, h)
+  local k = cell / span
+  return k, math.floor((span - w) / 2) * k, (span - h) * k
+end
+
 -- The pic's tile block, for the SGB zone that colours it on Gen 1.
 --
 -- A whole-screen zone alone paints the pic with whatever palette the screen
