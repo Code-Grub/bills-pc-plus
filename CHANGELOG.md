@@ -3,6 +3,16 @@
 Written in the style described in [docs/changelog-style.md](docs/changelog-style.md):
 what changed for the player, with the reasoning left in the commit history.
 
+## 0.15.3
+
+- Icons from packs that pad their icons, such as HGSS Visual Overhaul, now
+  fill their slot instead of showing at half size.
+- The sprite panel shows the same picture as the summary screen, so HGSS
+  Visual Overhaul's Pokemon art appears there too when its BATTLE ART SCOPE
+  is set to COMPLETE. Pictures bigger than the panel are shrunk to fit. As on
+  the summary screen, that art only shows its full colours with COLORS set to
+  ADVANCED.
+
 ## 0.15.2
 
 - Box and party icons from mods that draw bigger ones, such as HGSS Visual
