@@ -17,8 +17,8 @@ Free box paging that never writes your save · grab-and-place rearranging · an 
 ---
 
 Bill's PC+ replaces the built-in PC box screen with a grid interface. Browse and
-rearrange your boxes freely. The PC never writes your save at all, so
-nothing interrupts you and nothing is decided for you.
+rearrange your boxes freely. It works on Red, Blue and Yellow, and on Gold,
+Silver and Crystal.
 
 <p align="center">
   <img src="images/demo_box_v6.gif" width="480" alt="Box view: the 5x4 grid with gaps beside the selected Pokemon's sprite and stats, showing the cursor blink, MOVE and paging"/><br/>
@@ -32,32 +32,22 @@ nothing interrupts you and nothing is decided for you.
 
 ## Features
 
-- **Free box paging:** walk the cursor off the left or right edge of the grid
-  to page between boxes. No prompt, no save, no interruption.
-- **Grab-and-place, with gaps:** pick a Pokemon up with `A`, drop it on any
-  cell. Swap if the slot is occupied, place if it is free, and the rest stay
-  exactly where they were. Cross-box moves just work.
-- **Inline art and stats panel:** the selected Pokemon's front sprite and
-  condensed stats (level, HP, ATK/DEF/SPD/SPC) sit beside the grid, and keep
-  describing the Pokemon in hand while you carry it.
-- **DV spread, if you want it:** the hidden numbers breeders sort boxes by,
-  on the bottom line of the stats strip. It is on by default and switchable
-  from OPTIONS → MODS → BILL'S PC PLUS → DV DISPLAY, which takes effect on
-  the spot without leaving the PC. The shiny mark is not covered by the
-  toggle: that stays on the plate either way.
-- **Deposit mode:** your party appears as a row under the box; pick one and
-  page the destination box independently.
-- **The PC never writes your save:** not when you page, not when you move a
-  Pokemon, not on the way out. Whatever you did rides along with your next
-  ordinary save, so saving stays where you chose to put it: the START menu.
-  Nothing else writes it either: while the PC is open, a save attempted from
-  anywhere else is refused, the way vanilla simply had no way to save in
-  there. It is not thrown away, though. If an autosave mod tried to save
-  while you were in the PC, that save happens the moment you leave. The
-  flip side is real. Quit without saving and the PC visit goes
-  with everything else you did since.
-- **Readable cursor:** blinking corner marks on the selected cell, holding
-  steady over a carry's landing spot, readable on empty slots.
+- **Free box paging:** move the cursor off the left or right edge of the grid
+  to change boxes. No prompt, no save.
+- **Grab-and-place, with gaps:** pick a Pokemon up with `A` and drop it on any
+  slot. Other Pokemon stay where they are, and moves between boxes just work.
+- **Art and stats panel:** the selected Pokemon's sprite and stats sit beside
+  the grid.
+- **DV display:** the hidden DV numbers on the stats strip. On by default;
+  turn it off in OPTIONS → MODS → BILL'S PC PLUS → DV DISPLAY.
+- **Extra boxes:** OPTIONS → MODS → BILL'S PC PLUS → EXTRA BOXES gives you 99
+  boxes instead of 12 (Red, Blue, Yellow) or 14 (Gold, Silver, Crystal), each
+  holding 20. Off by default. Turning it off never deletes anything: Pokemon
+  in the extra boxes come back when you turn it on again.
+- **Deposit mode:** your party appears as a row under the box, so you can pick
+  who to deposit and page to the box you want.
+- **No saving inside the PC:** the PC never writes your save. Everything you
+  do there is kept with your next normal save from the START menu.
 - **Stays Gen 1.** Everything is drawn from the game itself: the same font,
   window borders, palette and sound effects as the vanilla PC, so the grid
   reads like something the Game Boy could have shipped.
@@ -69,8 +59,6 @@ nothing interrupts you and nothing is decided for you.
 the zip into the save directory's `imports/mods/` folder and rescan.
 
 **Manual:** unzip the release into the game's `mods/bills_pc_plus/` directory.
-It claims the `BoxMenu` screen id, so it replaces the built-in PC box screen
-with no further configuration.
 
 ## Controls
 
@@ -82,17 +70,18 @@ Opening the PC shows a menu:
 | DEPOSIT POKéMON | Opens the box grid with your party shown as a row |
 | SEE YA! | Leaves the PC |
 
-`B` from either grid returns to this menu, so switching between withdrawing
-and depositing is `B` then pick.
+`B` from either grid returns to this menu. On Gold, Silver and Crystal the
+game's own PC menu asks WITHDRAW, DEPOSIT or MOVE first and opens the grid in
+that view.
 
 ### Box view (WITHDRAW)
 
 | Input | Action |
 |---|---|
 | D-pad | Move the cursor within the grid |
-| Left/Right at a grid edge | Page to the previous/next box, cursor wrapping to the opposite column |
+| Left/Right at a grid edge | Page to the previous/next box |
 | A on a Pokemon | Cursor menu: MOVE / WITHDRAW / STATS / RELEASE / CANCEL |
-| A while carrying | Drop: swap if the slot is occupied, append if empty |
+| A while carrying | Drop: swap if the slot is occupied, place it in that slot if empty |
 | B | Cancel carry; if not carrying, back to the menu |
 
 ### Deposit view (DEPOSIT)
@@ -106,38 +95,14 @@ and depositing is `B` then pick.
 
 ## Known limitations
 
-- **Gaps are a display layer, not cartridge data.** The Gen 1 save format
-  stores a count byte followed by that many contiguous Pokemon and has no
-  hole encoding, so the layout rides in the engine save beside it. Exporting a
-  .sav packs each box in reading order; importing one refills that box
-  solid. A mon caught since your last visit fills the leftmost gap and
-  moves nobody. Trading does not disturb the boxes at all: a trade swaps
-  a party slot, so the layout is untouched.
-- **A box something else rearranged loses its gaps, rather than muddling
-  them.** The layout says "packed mon k sits at the kth remembered cell",
-  which only means anything for the mon list it was recorded against.
-  Anything that removes a Pokemon from the middle of a box from outside
-  the PC (disabling a mod that added species is the one way to do it
-  today) shifts every later mon down an index. The mod stores a digest
-  of the mons each layout described and packs that box solid when it no
-  longer matches, so the gaps go rather than landing on the wrong
-  Pokemon. No Pokemon is moved or lost either way.
-- **The PC no longer writes, so it no longer protects you.** Vanilla wrote
-  SRAM on every box change, which meant a deposit could not be lost. Here a
-  deposit lives in memory like the rest of your progress until you save from
-  the START menu. While the grid is open the boxes are mid-flight, and a
-  Pokemon you have picked up is in no box and in no party at all, so the
-  mod claims the engine's `save.write` hook and refuses any save attempted
-  from inside the PC (the F1 hotkey, an autosave mod). The refusal lands
-  before a single byte is captured. Refusing is not the same as swallowing:
-  a mod that autosaved in there believes it saved, so leaving the PC
-  reconciles the boxes and then replays the save that was asked for. A
-  visit nothing tried to save through still writes nothing at all.
-- `save.currentBox` follows the box you were last looking at, and persists
-  with your next save whether or not you moved anything.
-- If every cell of every box is full, cancelling a carry refuses with a
-  message and the Pokemon stays in hand, rather than creating an
-  over-capacity box.
+- **Save from the START menu.** The PC does not save, so quitting without
+  saving loses what you did in the PC along with everything else.
+- **Gaps are not part of a cartridge save.** Exporting a .sav packs each box
+  in order, and importing one fills boxes without gaps.
+- **Extra boxes are not part of a cartridge save.** Exporting a .sav includes
+  only the original 12 or 14 boxes.
+- **Gen 2:** the DV row has no label, and an egg's portrait shows the Pokemon
+  it will hatch into.
 
 ## Version
 
