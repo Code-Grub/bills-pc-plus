@@ -506,4 +506,56 @@ function Engine:modifyHappiness(save, event, mon)
   end)
 end
 
+-- ------- box count (EXTRA BOXES)
+--
+-- The count is applied at load, before any screen exists, so these are module
+-- functions rather than methods on the per-screen Engine.new(gen2) instances,
+-- which only learn their generation when their screen is built.
+--
+-- Detection is a capability test, as the Gen 2 design requires: the module
+-- the Gen 1 API names answers per generation (the real one on Red, Gold's
+-- compatibility adapter on Gold), and only Gold's has NUM_BOXES.  Gen 2
+-- modules are required only past that test, because the loader refuses a
+-- mod's require of any src.*.gen2.* module on a Gen 1 boot
+-- (src/mods/Loader.lua crossGenerationDenial).
+local function gen2BoxModules()
+  local Boxes = require("src.pokemon.Boxes")
+  if Boxes.NUM_BOXES == nil then return nil, nil end
+  return require("src.core.gen2.Boxes"), require("src.core.gen2.Save")
+end
+
+-- The box count the engine booted with: 12 on Red, 14 on Gold.
+--
+-- Remembered on the engine module that owns the constant, not here.  This
+-- file is re-read on every mod load while engine modules live for the whole
+-- process, so a memo in this file would, after a hot reload or a second load
+-- in one test run, record an already-raised 99 as the original and make
+-- turning the option off a no-op.
+function Engine.originalBoxCount()
+  local Boxes = require("src.pokemon.Boxes")
+  local _, Save2 = gen2BoxModules()
+  local owner = Save2 or Boxes
+  if owner._billsPcPlusOriginalCount == nil then
+    owner._billsPcPlusOriginalCount = Save2 and Save2.NUM_BOXES or Boxes.COUNT
+  end
+  return owner._billsPcPlusOriginalCount
+end
+
+-- Set the number of boxes, never the slots in one.
+--
+-- Gold keeps the count in three places: Save.NUM_BOXES, which Boxes copies
+-- when it is required; Boxes.NUM_BOXES, which Gold's own PC, battle catch and
+-- box helpers read live; and the compatibility adapter's COUNT, which
+-- src/mods/Gen2Compat.lua copied once when it built the adapter and which
+-- BoxSession pages by.  All three move together so none can disagree.
+function Engine.setBoxCount(n)
+  local Boxes = require("src.pokemon.Boxes")
+  local Boxes2, Save2 = gen2BoxModules()
+  Boxes.COUNT = n
+  if Boxes2 then
+    Boxes2.NUM_BOXES = n
+    Save2.NUM_BOXES = n
+  end
+end
+
 return Engine

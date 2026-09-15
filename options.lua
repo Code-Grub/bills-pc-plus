@@ -18,4 +18,15 @@ return {
     label = "DV DISPLAY",
     default = true,
   },
+  -- EXTRA BOXES raises PC storage to 99 boxes of 20 on both generations.
+  -- Default off: more boxes is a choice, and a player who never asked for
+  -- them should see the PC they already know.  Turning it off never moves or
+  -- deletes anything; Pokemon in boxes past the original count stay in the
+  -- save and come back when it is turned on again.
+  {
+    key = "extra_boxes",
+    type = "toggle",
+    label = "EXTRA BOXES",
+    default = false,
+  },
 }
