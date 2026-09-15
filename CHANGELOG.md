@@ -3,6 +3,18 @@
 Written in the style described in [docs/changelog-style.md](docs/changelog-style.md):
 what changed for the player, with the reasoning left in the commit history.
 
+## 0.16.0
+
+- A new EXTRA BOXES option gives the PC 99 boxes instead of 12 on Red, Blue
+  and Yellow or 14 on Gold, Silver and Crystal. Every box still holds 20 and
+  the PC looks the same. It is off by default.
+- Turning it off never deletes anything. Pokemon in the extra boxes stay in
+  your save and come back when you turn it on again, and until then the PC
+  tells you how many are waiting there.
+- Exporting a cartridge save only includes the original 12 or 14 boxes. On
+  Gold, Silver and Crystal the game's own CHANGE BOX list scrolls through all
+  99, one row at a time.
+
 ## 0.15.4
 
 - On phones, box and party icons from packs like HGSS Visual Overhaul show
