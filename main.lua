@@ -1544,6 +1544,36 @@ return function(mod)
         })
         -- the session outlives each grid push, so expose it on the menu
         menu.session = session
+
+        -- ...and because it outlives them, this is where a visit becomes
+        -- visible to the rest of the game again.  save.boxes is stale for
+        -- as long as the GRID is up -- a withdrawn mon is in the party and
+        -- still in its box, one in hand is in neither -- and the save.write
+        -- veto is what covers that window.  The veto covers writers only.
+        -- Other mods put their own rows on THIS menu and read the boxes
+        -- straight from the save: FOLLOWERS_EX injects a BOX LEADER row
+        -- into whatever the PC pushes and lists Boxes.active(game.save),
+        -- so a visit that withdrew a mon and backed out offered the player
+        -- a list with that mon still in it, and set a leader index into a
+        -- box that was about to be rewritten.
+        --
+        -- Nothing here is ever mid-move, which is what makes reconciling
+        -- safe at this point and not inside the grid: B cancels a carry
+        -- before it can leave the grid (Screen:update), so the hand is
+        -- always empty by the time this screen is back on top.  Guarded on
+        -- being the top state the way vanilla's own PC menu guards its
+        -- hollow cursor (src/ui/BoxMenu.lua:387), and committed BEFORE the
+        -- base update runs, so a row selected on this very frame reads the
+        -- reconciled boxes.
+        --
+        -- This is reconciliation, not a save: commit is in-memory, the
+        -- veto stays armed until exit, and a browse-only visit is not
+        -- dirty so it writes nothing at all.
+        local baseUpdate = menu.update
+        function menu:update(dt)
+          if self.game.stack:top() == self then session:commit() end
+          return baseUpdate(self, dt)
+        end
         return menu
       end,
     }
