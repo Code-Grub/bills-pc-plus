@@ -524,6 +524,14 @@ local function gen2BoxModules()
   return require("src.core.gen2.Boxes"), require("src.core.gen2.Save")
 end
 
+-- Which engine this is, asked the same way the box count asks it: only
+-- Gold's box module carries NUM_BOXES.  Callers that must know before any
+-- screen exists -- the ones deciding what to claim at load -- have no
+-- Engine.new(gen2) instance to ask yet.
+function Engine.hasGen2Boxes()
+  return (select(2, gen2BoxModules())) ~= nil
+end
+
 -- The box count the engine booted with: 12 on Red, 14 on Gold.
 --
 -- Remembered on the engine module that owns the constant, not here.  This

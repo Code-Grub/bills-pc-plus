@@ -1,0 +1,15 @@
+{
+  "id": "modern_pc_ui",
+  "name": "Modern PC UI (test double)",
+  "version": "0.4.1",
+  "api": 2,
+  "entry": "main.lua",
+  "profile": "content",
+  "category": "UI",
+  "game_version": ">=0.0.0-0 <2.0.0",
+  "priority": 1100,
+  "dependencies": [],
+  "optional_dependencies": [],
+  "conflicts": [],
+  "description": "Test double for tests/modern_pc_ui_test.lua: claims BoxMenu the way the real mod does, register-or-override, at its real priority."
+}

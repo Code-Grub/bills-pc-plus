@@ -46,12 +46,61 @@ return function(mod)
   local optionRows = sibling("options.lua")
   if optionRows then mod.options:define(optionRows) end
 
+  -- ------- standing down for Modern PC UI
+  --
+  -- It replaces "only Someone's/Bill's Pokemon-storage screen" (its
+  -- main.lua:1), which is this screen, and it loads at priority 1100
+  -- against our 100 -- so it always ran second and its register-or-override
+  -- branch took the screen off us anyway.  What it could not take was the
+  -- box count: EXTRA BOXES raises Boxes.COUNT engine-wide, its box picker
+  -- is ceil(Boxes.COUNT / 4) rows in one fixed panel (its screen.lua:1570),
+  -- and 99 boxes crush 25 rows into the space for three.  A player who
+  -- installed both saw its PC, no sign of this mod anywhere, and a box
+  -- picker we had quietly deformed.
+  --
+  -- So the loss is made deliberate and complete instead: with it installed
+  -- we claim nothing and change nothing, and it holds the only registration
+  -- rather than overriding ours away.
+  --
+  -- `conflicts` would have been the wrong tool twice.  The loader fails the
+  -- mod that DECLARES the incompatibility ("the declaring mod loses",
+  -- src/mods/Loader.lua:983), so we would be the one refused -- and it
+  -- ships no Gold code at all, so that would surrender Gold, Silver and
+  -- Crystal over a clash that only exists on Red, Blue and Yellow.  Hence
+  -- the generation test: on Gold nothing is contested and nothing is given
+  -- up.
+  --
+  -- The optional dependency in the manifest is what makes this knowable.
+  -- mod.find answers nil for a mod that "has not run yet"
+  -- (src/mods/Loader.lua:1536), and priority alone would have run it after
+  -- us; an optional dependency "orders without requiring anything"
+  -- (src/mods/Loader.lua:1027), so it is loaded and findable by the time
+  -- this runs, and still entirely optional.
+  local MODERN_PC_UI = "modern_pc_ui"
+  local standDown = false
+  if not Engine.hasGen2Boxes() and mod.find and mod.find(MODERN_PC_UI) then
+    standDown = true
+    mod.log:info(
+      "%s is installed and owns the PC on this game; leaving the box screen "
+      .. "and the box count to it", MODERN_PC_UI)
+  end
+
   -- EXTRA BOXES: 99 boxes of 20 when on, the engine's own count when off.
   -- The original is captured before anything writes the count, so off always
   -- means the number the engine booted with (Engine.originalBoxCount).
   local EXTRA_BOX_COUNT = 99
   local originalBoxCount = Engine.originalBoxCount()
   local function applyExtraBoxes()
+    -- Standing down puts the count back where we found it rather than just
+    -- declining to raise it.  A previous load of this mod with the option
+    -- on leaves Boxes.COUNT at 99 on the engine module, which outlives the
+    -- load, and the manager can enable their mod and reload without
+    -- restarting the game -- so "leave it alone" would hand them a raised
+    -- count we set ourselves.
+    if standDown then
+      Engine.setBoxCount(originalBoxCount)
+      return
+    end
     local on = mod.options:get("extra_boxes") == true
     Engine.setBoxCount(on and EXTRA_BOX_COUNT or originalBoxCount)
   end
@@ -1503,6 +1552,8 @@ return function(mod)
   -- Both ids, unconditionally.  Each is inert on the other generation: Gen 1
   -- never builds Gen2BoxMenu and Gold never builds BoxMenu, so one package
   -- claims the PC on either engine without asking which one it is on.
-  mod.content.screens:register("BoxMenu", boxMenuFactory(Engine.new(false)))
+  if not standDown then
+    mod.content.screens:register("BoxMenu", boxMenuFactory(Engine.new(false)))
+  end
   mod.content.screens:register("Gen2BoxMenu", boxMenuFactory(Engine.new(true)))
 end

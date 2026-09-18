@@ -12,7 +12,7 @@
   "priority": 100,
   "permissions": ["engine_internals"],
   "dependencies": [],
-  "optional_dependencies": [],
+  "optional_dependencies": ["modern_pc_ui"],
   "conflicts": [],
   "description": "Replaces the PC box screen with a grid interface: free box paging that never writes your save, grab-and-place rearranging, and an inline art and stats panel.",
   "github": "Code-Grub/bills-pc-plus"
