@@ -1321,27 +1321,44 @@ return function(mod)
   -- mode that row names.  Both rows share one session, so a withdrawal and
   -- a deposit in the same PC visit accumulate into a single dirty flag and
   -- a single write on the way out.
-  -- Rex's UI Overhaul hides every stock Menu it believes it can present, but
-  -- only draws its replacement once it recognises EVERY visible screen.  The
-  -- grid is a screen it has never heard of, so the cursor menu opened over
-  -- it -- MOVE / WITHDRAW / STATS / RELEASE, the refusal boxes, the release
-  -- prompt -- was hidden and never redrawn: open, taking input, invisible.
+  -- Rex's UI Overhaul and Gen 1 Modern UI both hide a stock Menu they
+  -- believe they can present, and both decide that against the whole
+  -- visible stack.  The grid is a screen neither has heard of, so the
+  -- cursor menu opened over it -- MOVE / WITHDRAW / STATS / RELEASE, the
+  -- refusal boxes, the release prompt -- was hidden, and NEITHER drew a
+  -- replacement: open, taking input, drawn by nobody.  Gen 1 Modern UI
+  -- looked like it should fare better, since it owns a menu presenter and
+  -- its suppression is documented as fail-open, but a capture of the real
+  -- 0.9.2 with the surface withdrawn shows the same empty grid Rex gave.
+  -- Its proof completes on our stack -- the cursor menu is a plain Menu it
+  -- accepts -- while the presenter never draws for a menu whose base it
+  -- does not own.
   --
-  -- Rex's public seam for a source mod's own screen is an API-v2 custom
-  -- surface (registerAdapter, its main.lua:3570).  Registering the grid as
-  -- one with native.policy "preserve" makes it a screen Rex recognises
-  -- without letting Rex touch its pixels, and while any surface is on the
-  -- stack Rex's canSuppressState hides nothing, so everything this screen
-  -- opens draws exactly as it does without Rex.  render draws nothing: the
-  -- surface exists to be recognised, not to be seen.
+  -- Both publish the same seam for a source mod's own screen: an API-v2
+  -- custom surface through registerAdapter (Rex's main.lua:3570, Gen 1
+  -- Modern UI's main.lua:3176), each taking { owner, contract }, each
+  -- checking the owner against the source mod's manifest id.  Their
+  -- validators agree on the shape, and Gen 1 Modern UI's
+  -- SURFACE_API_VERSION is 2 like Rex's, so ONE contract table satisfies
+  -- both -- which is the thing to keep true when either of them moves.
+  --
+  -- Registering the grid with native.policy "preserve" makes it a screen
+  -- they recognise without letting either touch its pixels, and while any
+  -- surface is on the stack neither hides anything: Rex's canSuppressState
+  -- refuses, and Gen 1 Modern UI's render_visible hook returns early on
+  -- surfaceInStack.  So everything this screen opens draws exactly as it
+  -- does with neither installed.  render draws nothing: the surface exists
+  -- to be recognised, not to be seen.  A screen adapter
+  -- (contract.screens) is the wrong tool -- both would draw the grid
+  -- themselves.
   --
   -- Registration happens as the grid is built rather than at load, because
-  -- mod load order is not ours to rely on and by the time anyone opens a PC
-  -- every mod has loaded.  The contract is one table for the life of the
-  -- mod: Rex re-registers whenever it is handed a different one.  With Rex
-  -- absent mod.find returns nil and none of this runs.
-  local REX_ID = "rexs_ui_overhaul"
-  local rexContract = {
+  -- mod load order is not ours to rely on and by the time anyone opens a
+  -- PC every mod has loaded.  The contract is one table for the life of
+  -- the mod: Rex re-registers whenever it is handed a different one.  An
+  -- absent presenter is mod.find returning nil, and none of it runs.
+  local PRESENTER_IDS = { "rexs_ui_overhaul", "gen1_modern_ui" }
+  local surfaceContract = {
     apiVersion = 2,
     surfaces = {
       bills_pc_plus_grid = {
@@ -1354,18 +1371,22 @@ return function(mod)
     },
   }
 
-  local function registerWithRex()
-    local handle = mod.find and mod.find(REX_ID)
-    local register = handle and handle.exports
-      and handle.exports.registerAdapter
-    if type(register) ~= "function" then return end
-    -- A refusal or a throw from Rex must never keep the PC from opening.
-    pcall(register, { owner = "bills_pc_plus", contract = rexContract })
+  local function registerWithPresenters()
+    for _, id in ipairs(PRESENTER_IDS) do
+      local handle = mod.find and mod.find(id)
+      local register = handle and handle.exports
+        and handle.exports.registerAdapter
+      if type(register) == "function" then
+        -- A refusal or a throw from one presenter must never keep the PC
+        -- from opening, nor stop the next one being told.
+        pcall(register, { owner = "bills_pc_plus", contract = surfaceContract })
+      end
+    end
   end
 
   local function newGrid(game, session, mode, engine)
     assert(engine, "newGrid needs a seam")
-    registerWithRex()
+    registerWithPresenters()
     -- The cursor comes from the session, where Screen:update kept it, so a
     -- grid reopened from the menu resumes where the last one stood.
     -- partyCursor clamps to the party actually there: deposits shrink it
