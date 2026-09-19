@@ -580,11 +580,12 @@ return function(mod)
     love.graphics.setColor(1, 1, 1, 1)
   end
 
-  -- Plain icon draw for the transition slide, offset by (dx, dy) and with
-  -- no per-cell scissor: the caller already clips the whole grid rect, and
-  -- a slide only ever runs a handful of frames, so a mod-supplied icon
-  -- oversized enough to bleed past its neighbour is a cosmetic nit for a
-  -- twentieth of a second, not worth a second nested scissor.  Never
+  -- Icon draw for the transition slide, offset by (dx, dy).  Fitted into
+  -- each sliding cell exactly as the settled grid is: drawn raw, HGSS's
+  -- 32px frames piled over their neighbours for the whole slide and the
+  -- grid's edge cut the outer column in half, which read as broken icons
+  -- every time a player paged.  The cell scissor intersects the grid rect
+  -- the caller set, so a cell half past the edge is still cut there.  Never
   -- animated: a blinking cursor icon mid-slide would imply the cursor itself
   -- is moving, and it is not.  Empty cells get their dot here too, so it does
   -- not pop in only once the slide finishes.
@@ -593,7 +594,7 @@ return function(mod)
       local mon = box[i]
       local x, y = Layout.slotXY(i)
       if mon then
-        self.engine:drawIcon(self.game, mon, x + dx, y + dy, false)
+        drawIconClamped(self, mon, x + dx, y + dy, false)
       else
         drawEmptySlot(x + dx, y + dy)
       end
