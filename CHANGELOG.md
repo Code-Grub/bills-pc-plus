@@ -3,6 +3,22 @@
 Written in the style described in [docs/changelog-style.md](docs/changelog-style.md):
 what changed for the player, with the reasoning left in the commit history.
 
+## 0.16.1
+
+- With EXTRA BOXES on, catching a Pokemon with a full party and full boxes
+  no longer crashes the game, and neither do other mods' box menus that
+  list every box.
+- With Modern PC UI installed on Red, Blue or Yellow, this mod now steps
+  aside and leaves the PC to it, and EXTRA BOXES stays off so its box picker
+  keeps its layout. Gold, Silver and Crystal are unaffected.
+- With Gen 1 Modern UI installed, the MOVE / WITHDRAW / STATS / RELEASE menu
+  shows up again when you pick a Pokemon in the grid.
+- With Followers EX installed, BOX LEADER lists the Pokemon actually in the
+  box after you withdraw or deposit, instead of the box as it was when you
+  opened the PC.
+- Icons from HGSS Visual Overhaul no longer spill over each other and get cut
+  off at the edge of the grid while you switch boxes.
+
 ## 0.16.0
 
 - A new EXTRA BOXES option gives the PC 99 boxes instead of 12 on Red, Blue
