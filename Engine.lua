@@ -524,6 +524,14 @@ local function gen2BoxModules()
   return require("src.core.gen2.Boxes"), require("src.core.gen2.Save")
 end
 
+-- Which engine this is, asked the same way the box count asks it: only
+-- Gold's box module carries NUM_BOXES.  Callers that must know before any
+-- screen exists -- the ones deciding what to claim at load -- have no
+-- Engine.new(gen2) instance to ask yet.
+function Engine.hasGen2Boxes()
+  return (select(2, gen2BoxModules())) ~= nil
+end
+
 -- The box count the engine booted with: 12 on Red, 14 on Gold.
 --
 -- Remembered on the engine module that owns the constant, not here.  This
@@ -541,6 +549,45 @@ function Engine.originalBoxCount()
   return owner._billsPcPlusOriginalCount
 end
 
+-- Raising the count alone raises only what the mod itself reads.  The
+-- engine's own box array is built once, by Boxes.ensure, and only when it
+-- is missing entirely (src/pokemon/Boxes.lua:11), so a save the game wrote
+-- with 12 boxes still has 12 after the option goes on -- while every helper
+-- that walks 1..Boxes.COUNT off that array now runs 87 boxes past its end.
+-- Boxes.deposit is the one that reaches a player: a catch with a full party
+-- calls it, it indexes each box in turn looking for room, and box 13 is nil,
+-- so the catch errors out with the PC never opened.  Other mods walk the
+-- same array from the same constant -- gen3_box's box-jump menu is
+-- `for i = 1, Boxes.COUNT do ... #boxes[i]` -- and they reach it through
+-- this same function.
+--
+-- So the top-up goes where the array is handed out, not where the count is
+-- set.  At the moment the count changes there is no save to raise: the
+-- option is applied at load, and the manager can flip it mid-game from a
+-- screen that knows nothing about one.  Every caller about to walk the
+-- boxes comes through ensure first, so filling here also lands the mid-game
+-- flip without a hook of its own -- the next catch tops the save up on its
+-- way through.
+--
+-- Only ever additive.  A box that exists is left exactly as it is, and
+-- nothing is removed when the count drops, which is what keeps turning the
+-- option off from deleting the Pokemon stored past box 12.
+local function installBoxFill()
+  local Boxes = require("src.pokemon.Boxes")
+  if Boxes._billsPcPlusFill then return end
+  local ensure = Boxes.ensure
+  Boxes._billsPcPlusFill = ensure
+  function Boxes.ensure(save)
+    local boxes = ensure(save)
+    if boxes then
+      for b = 1, Boxes.COUNT do
+        if boxes[b] == nil then boxes[b] = {} end
+      end
+    end
+    return boxes
+  end
+end
+
 -- Set the number of boxes, never the slots in one.
 --
 -- Gold keeps the count in three places: Save.NUM_BOXES, which Boxes copies
@@ -556,6 +603,7 @@ function Engine.setBoxCount(n)
     Boxes2.NUM_BOXES = n
     Save2.NUM_BOXES = n
   end
+  installBoxFill()
 end
 
 return Engine

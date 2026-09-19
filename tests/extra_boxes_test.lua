@@ -104,6 +104,67 @@ do
   run.release()
 end
 
+-- ------- the raised count reaches the save the game already wrote
+-- Boxes.ensure only builds boxes when save.boxes is nil, so a save made
+-- before EXTRA BOXES was turned on carries 12 of them and nothing else
+-- fills the rest.  Every engine box helper -- and every other mod -- walks
+-- 1..Boxes.COUNT off that array, so raising the count without raising the
+-- save leaves 87 nils in their path: the catch that overflows box 12 dies
+-- in Boxes.deposit, on the player's behalf, with the PC never opened.
+do
+  local run = loadWith(true)
+  local g = newGame(run, { party = {}, boxes = {}, currentBox = 1 })
+  for b = 1, 12 do
+    g.save.boxes[b] = {}
+    for _ = 1, Boxes.CAPACITY do
+      table.insert(g.save.boxes[b], newMon(3))
+    end
+  end
+
+  local ok, landed = pcall(Boxes.deposit, g.save, newMon(7))
+  T.eq(ok, true, "catching with the original 12 boxes full does not error ("
+    .. tostring(landed) .. ")")
+  T.eq(landed, 13, "the catch lands in the first of the extra boxes")
+  T.eq(#Boxes.ensure(g.save), 99, "and every box a mod walks is a real box")
+  T.eq(#g.save.boxes[1], Boxes.CAPACITY, "the boxes that were there are untouched")
+  run.release()
+end
+
+-- The manager can raise the count with a save already loaded, and the next
+-- catch is the first thing to walk it.
+do
+  local run = loadWith(false)
+  local g = newGame(run, { party = {}, boxes = nil, currentBox = 1 })
+  Boxes.ensure(g.save)
+  for b = 1, 12 do
+    g.save.boxes[b] = {}
+    for _ = 1, Boxes.CAPACITY do
+      table.insert(g.save.boxes[b], newMon(3))
+    end
+  end
+
+  run.loader.modOptions.bills_pc_plus.extra_boxes = true
+  run.loader.events:emit("mod.options_changed",
+    { mod = "bills_pc_plus", key = "extra_boxes", value = true })
+
+  local ok, landed = pcall(Boxes.deposit, g.save, newMon(7))
+  T.eq(ok, true, "a catch after flipping the option on mid-game does not error ("
+    .. tostring(landed) .. ")")
+  T.eq(landed, 13, "and lands in the first of the extra boxes")
+  run.release()
+end
+
+-- The other edge of the same seam: filling follows the live count, so with
+-- the option off it must not invent a thirteenth box for the engine to
+-- offer, name or export.
+do
+  local run = loadWith(false)
+  local g = newGame(run, { party = {}, boxes = nil, currentBox = 1 })
+  T.eq(#Boxes.ensure(g.save), 12,
+    "with EXTRA BOXES off a save keeps the engine's own 12 boxes")
+  run.release()
+end
+
 -- ------- a later load with it off restores 12, not an already-raised 99
 do
   local run = loadWith(false)

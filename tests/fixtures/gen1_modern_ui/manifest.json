@@ -1,0 +1,18 @@
+{
+  "id": "gen1_modern_ui",
+  "name": "Gen 1 Modern UI (test double)",
+  "version": "1.0.0",
+  "api": 2,
+  "games": [
+    "gen1"
+  ],
+  "entry": "main.lua",
+  "profile": "content",
+  "category": "UI",
+  "game_version": ">=0.0.0-0 <2.0.0",
+  "priority": 100,
+  "dependencies": [],
+  "optional_dependencies": [],
+  "conflicts": [],
+  "description": "Test double for tests/presenter_surface_test.lua: publishes the registerAdapter export and records what it is handed."
+}

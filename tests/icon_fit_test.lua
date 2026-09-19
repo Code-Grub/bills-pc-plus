@@ -363,4 +363,20 @@ do
     "a readback that is not the icon's size falls back to fitting the whole frame")
 end
 
+-- ------- a box page slide fits its icons too
+-- Mid-slide both boxes are drawn, each offset by the slide's progress.  Left
+-- unfitted, every HGSS frame drew 32px wide over its neighbours for the
+-- whole slide, and the grid's edge cut the outer column in half.
+do
+  local grid = boxGrid()
+  grid.transition = { axis = "x", dir = 1, frame = 4, total = 8,
+    oldBox = grid.session:box() }
+  local rects = iconRects(grid, hgss)
+  T.eq(#rects, 2, "mid-slide, the outgoing and incoming slot 1 are blitted")
+  T.eq(fmt(rects[1]), "-32,16 16x16",
+    "the outgoing icon is fitted into its sliding cell")
+  T.eq(fmt(rects[2]), "48,16 16x16",
+    "and so is the incoming one")
+end
+
 T.finish("bills_pc_plus icon_fit")

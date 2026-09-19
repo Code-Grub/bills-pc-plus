@@ -46,12 +46,61 @@ return function(mod)
   local optionRows = sibling("options.lua")
   if optionRows then mod.options:define(optionRows) end
 
+  -- ------- standing down for Modern PC UI
+  --
+  -- It replaces "only Someone's/Bill's Pokemon-storage screen" (its
+  -- main.lua:1), which is this screen, and it loads at priority 1100
+  -- against our 100 -- so it always ran second and its register-or-override
+  -- branch took the screen off us anyway.  What it could not take was the
+  -- box count: EXTRA BOXES raises Boxes.COUNT engine-wide, its box picker
+  -- is ceil(Boxes.COUNT / 4) rows in one fixed panel (its screen.lua:1570),
+  -- and 99 boxes crush 25 rows into the space for three.  A player who
+  -- installed both saw its PC, no sign of this mod anywhere, and a box
+  -- picker we had quietly deformed.
+  --
+  -- So the loss is made deliberate and complete instead: with it installed
+  -- we claim nothing and change nothing, and it holds the only registration
+  -- rather than overriding ours away.
+  --
+  -- `conflicts` would have been the wrong tool twice.  The loader fails the
+  -- mod that DECLARES the incompatibility ("the declaring mod loses",
+  -- src/mods/Loader.lua:983), so we would be the one refused -- and it
+  -- ships no Gold code at all, so that would surrender Gold, Silver and
+  -- Crystal over a clash that only exists on Red, Blue and Yellow.  Hence
+  -- the generation test: on Gold nothing is contested and nothing is given
+  -- up.
+  --
+  -- The optional dependency in the manifest is what makes this knowable.
+  -- mod.find answers nil for a mod that "has not run yet"
+  -- (src/mods/Loader.lua:1536), and priority alone would have run it after
+  -- us; an optional dependency "orders without requiring anything"
+  -- (src/mods/Loader.lua:1027), so it is loaded and findable by the time
+  -- this runs, and still entirely optional.
+  local MODERN_PC_UI = "modern_pc_ui"
+  local standDown = false
+  if not Engine.hasGen2Boxes() and mod.find and mod.find(MODERN_PC_UI) then
+    standDown = true
+    mod.log:info(
+      "%s is installed and owns the PC on this game; leaving the box screen "
+      .. "and the box count to it", MODERN_PC_UI)
+  end
+
   -- EXTRA BOXES: 99 boxes of 20 when on, the engine's own count when off.
   -- The original is captured before anything writes the count, so off always
   -- means the number the engine booted with (Engine.originalBoxCount).
   local EXTRA_BOX_COUNT = 99
   local originalBoxCount = Engine.originalBoxCount()
   local function applyExtraBoxes()
+    -- Standing down puts the count back where we found it rather than just
+    -- declining to raise it.  A previous load of this mod with the option
+    -- on leaves Boxes.COUNT at 99 on the engine module, which outlives the
+    -- load, and the manager can enable their mod and reload without
+    -- restarting the game -- so "leave it alone" would hand them a raised
+    -- count we set ourselves.
+    if standDown then
+      Engine.setBoxCount(originalBoxCount)
+      return
+    end
     local on = mod.options:get("extra_boxes") == true
     Engine.setBoxCount(on and EXTRA_BOX_COUNT or originalBoxCount)
   end
@@ -531,11 +580,12 @@ return function(mod)
     love.graphics.setColor(1, 1, 1, 1)
   end
 
-  -- Plain icon draw for the transition slide, offset by (dx, dy) and with
-  -- no per-cell scissor: the caller already clips the whole grid rect, and
-  -- a slide only ever runs a handful of frames, so a mod-supplied icon
-  -- oversized enough to bleed past its neighbour is a cosmetic nit for a
-  -- twentieth of a second, not worth a second nested scissor.  Never
+  -- Icon draw for the transition slide, offset by (dx, dy).  Fitted into
+  -- each sliding cell exactly as the settled grid is: drawn raw, HGSS's
+  -- 32px frames piled over their neighbours for the whole slide and the
+  -- grid's edge cut the outer column in half, which read as broken icons
+  -- every time a player paged.  The cell scissor intersects the grid rect
+  -- the caller set, so a cell half past the edge is still cut there.  Never
   -- animated: a blinking cursor icon mid-slide would imply the cursor itself
   -- is moving, and it is not.  Empty cells get their dot here too, so it does
   -- not pop in only once the slide finishes.
@@ -544,7 +594,7 @@ return function(mod)
       local mon = box[i]
       local x, y = Layout.slotXY(i)
       if mon then
-        self.engine:drawIcon(self.game, mon, x + dx, y + dy, false)
+        drawIconClamped(self, mon, x + dx, y + dy, false)
       else
         drawEmptySlot(x + dx, y + dy)
       end
@@ -1272,27 +1322,44 @@ return function(mod)
   -- mode that row names.  Both rows share one session, so a withdrawal and
   -- a deposit in the same PC visit accumulate into a single dirty flag and
   -- a single write on the way out.
-  -- Rex's UI Overhaul hides every stock Menu it believes it can present, but
-  -- only draws its replacement once it recognises EVERY visible screen.  The
-  -- grid is a screen it has never heard of, so the cursor menu opened over
-  -- it -- MOVE / WITHDRAW / STATS / RELEASE, the refusal boxes, the release
-  -- prompt -- was hidden and never redrawn: open, taking input, invisible.
+  -- Rex's UI Overhaul and Gen 1 Modern UI both hide a stock Menu they
+  -- believe they can present, and both decide that against the whole
+  -- visible stack.  The grid is a screen neither has heard of, so the
+  -- cursor menu opened over it -- MOVE / WITHDRAW / STATS / RELEASE, the
+  -- refusal boxes, the release prompt -- was hidden, and NEITHER drew a
+  -- replacement: open, taking input, drawn by nobody.  Gen 1 Modern UI
+  -- looked like it should fare better, since it owns a menu presenter and
+  -- its suppression is documented as fail-open, but a capture of the real
+  -- 0.9.2 with the surface withdrawn shows the same empty grid Rex gave.
+  -- Its proof completes on our stack -- the cursor menu is a plain Menu it
+  -- accepts -- while the presenter never draws for a menu whose base it
+  -- does not own.
   --
-  -- Rex's public seam for a source mod's own screen is an API-v2 custom
-  -- surface (registerAdapter, its main.lua:3570).  Registering the grid as
-  -- one with native.policy "preserve" makes it a screen Rex recognises
-  -- without letting Rex touch its pixels, and while any surface is on the
-  -- stack Rex's canSuppressState hides nothing, so everything this screen
-  -- opens draws exactly as it does without Rex.  render draws nothing: the
-  -- surface exists to be recognised, not to be seen.
+  -- Both publish the same seam for a source mod's own screen: an API-v2
+  -- custom surface through registerAdapter (Rex's main.lua:3570, Gen 1
+  -- Modern UI's main.lua:3176), each taking { owner, contract }, each
+  -- checking the owner against the source mod's manifest id.  Their
+  -- validators agree on the shape, and Gen 1 Modern UI's
+  -- SURFACE_API_VERSION is 2 like Rex's, so ONE contract table satisfies
+  -- both -- which is the thing to keep true when either of them moves.
+  --
+  -- Registering the grid with native.policy "preserve" makes it a screen
+  -- they recognise without letting either touch its pixels, and while any
+  -- surface is on the stack neither hides anything: Rex's canSuppressState
+  -- refuses, and Gen 1 Modern UI's render_visible hook returns early on
+  -- surfaceInStack.  So everything this screen opens draws exactly as it
+  -- does with neither installed.  render draws nothing: the surface exists
+  -- to be recognised, not to be seen.  A screen adapter
+  -- (contract.screens) is the wrong tool -- both would draw the grid
+  -- themselves.
   --
   -- Registration happens as the grid is built rather than at load, because
-  -- mod load order is not ours to rely on and by the time anyone opens a PC
-  -- every mod has loaded.  The contract is one table for the life of the
-  -- mod: Rex re-registers whenever it is handed a different one.  With Rex
-  -- absent mod.find returns nil and none of this runs.
-  local REX_ID = "rexs_ui_overhaul"
-  local rexContract = {
+  -- mod load order is not ours to rely on and by the time anyone opens a
+  -- PC every mod has loaded.  The contract is one table for the life of
+  -- the mod: Rex re-registers whenever it is handed a different one.  An
+  -- absent presenter is mod.find returning nil, and none of it runs.
+  local PRESENTER_IDS = { "rexs_ui_overhaul", "gen1_modern_ui" }
+  local surfaceContract = {
     apiVersion = 2,
     surfaces = {
       bills_pc_plus_grid = {
@@ -1305,18 +1372,22 @@ return function(mod)
     },
   }
 
-  local function registerWithRex()
-    local handle = mod.find and mod.find(REX_ID)
-    local register = handle and handle.exports
-      and handle.exports.registerAdapter
-    if type(register) ~= "function" then return end
-    -- A refusal or a throw from Rex must never keep the PC from opening.
-    pcall(register, { owner = "bills_pc_plus", contract = rexContract })
+  local function registerWithPresenters()
+    for _, id in ipairs(PRESENTER_IDS) do
+      local handle = mod.find and mod.find(id)
+      local register = handle and handle.exports
+        and handle.exports.registerAdapter
+      if type(register) == "function" then
+        -- A refusal or a throw from one presenter must never keep the PC
+        -- from opening, nor stop the next one being told.
+        pcall(register, { owner = "bills_pc_plus", contract = surfaceContract })
+      end
+    end
   end
 
   local function newGrid(game, session, mode, engine)
     assert(engine, "newGrid needs a seam")
-    registerWithRex()
+    registerWithPresenters()
     -- The cursor comes from the session, where Screen:update kept it, so a
     -- grid reopened from the menu resumes where the last one stood.
     -- partyCursor clamps to the party actually there: deposits shrink it
@@ -1495,6 +1566,36 @@ return function(mod)
         })
         -- the session outlives each grid push, so expose it on the menu
         menu.session = session
+
+        -- ...and because it outlives them, this is where a visit becomes
+        -- visible to the rest of the game again.  save.boxes is stale for
+        -- as long as the GRID is up -- a withdrawn mon is in the party and
+        -- still in its box, one in hand is in neither -- and the save.write
+        -- veto is what covers that window.  The veto covers writers only.
+        -- Other mods put their own rows on THIS menu and read the boxes
+        -- straight from the save: FOLLOWERS_EX injects a BOX LEADER row
+        -- into whatever the PC pushes and lists Boxes.active(game.save),
+        -- so a visit that withdrew a mon and backed out offered the player
+        -- a list with that mon still in it, and set a leader index into a
+        -- box that was about to be rewritten.
+        --
+        -- Nothing here is ever mid-move, which is what makes reconciling
+        -- safe at this point and not inside the grid: B cancels a carry
+        -- before it can leave the grid (Screen:update), so the hand is
+        -- always empty by the time this screen is back on top.  Guarded on
+        -- being the top state the way vanilla's own PC menu guards its
+        -- hollow cursor (src/ui/BoxMenu.lua:387), and committed BEFORE the
+        -- base update runs, so a row selected on this very frame reads the
+        -- reconciled boxes.
+        --
+        -- This is reconciliation, not a save: commit is in-memory, the
+        -- veto stays armed until exit, and a browse-only visit is not
+        -- dirty so it writes nothing at all.
+        local baseUpdate = menu.update
+        function menu:update(dt)
+          if self.game.stack:top() == self then session:commit() end
+          return baseUpdate(self, dt)
+        end
         return menu
       end,
     }
@@ -1503,6 +1604,8 @@ return function(mod)
   -- Both ids, unconditionally.  Each is inert on the other generation: Gen 1
   -- never builds Gen2BoxMenu and Gold never builds BoxMenu, so one package
   -- claims the PC on either engine without asking which one it is on.
-  mod.content.screens:register("BoxMenu", boxMenuFactory(Engine.new(false)))
+  if not standDown then
+    mod.content.screens:register("BoxMenu", boxMenuFactory(Engine.new(false)))
+  end
   mod.content.screens:register("Gen2BoxMenu", boxMenuFactory(Engine.new(true)))
 end
