@@ -646,6 +646,45 @@ for _, d in ipairs(dots) do
 end
 T.check(onCell2, "the dot centres in its empty cell")
 
+-- ------- the empty slot dot is an option, not a fixture
+-- Same read-per-draw toggle pattern as dv_display above (options.lua,
+-- through the manifest's options_schema): nothing stored falls through to
+-- the schema default, ON, and the change lands on the next draw.
+do
+  local row
+  for _, r in ipairs(run.loader.optionSchemas.bills_pc_plus or {}) do
+    if r.key == "box_indicator_dots" then row = r end
+  end
+  T.check(row ~= nil, "the mod defines a box_indicator_dots option row")
+  T.eq(row and row.type, "toggle", "it is a toggle, so the manager draws ON/OFF")
+  T.eq(row and row.default, true,
+    "and it defaults on, so an update does not hide the dots players have")
+
+  local function countDots()
+    local n = 0
+    local rRect = gfx.rectangle
+    gfx.rectangle = function(mode, x, y, w, h)
+      if mode == "fill" and w == 1 and h == 1
+          and y >= L.GRID_Y and y < L.GRID_Y + L.ROWS * L.CELL then
+        n = n + 1
+      end
+      return rRect(mode, x, y, w, h)
+    end
+    dotGrid:draw()
+    gfx.rectangle = rRect
+    return n
+  end
+
+  run.loader.modOptions.bills_pc_plus = { box_indicator_dots = false }
+  T.eq(countDots(), 0, "with the option off, no empty cell draws a dot")
+
+  run.loader.modOptions.bills_pc_plus.box_indicator_dots = true
+  T.eq(countDots(), L.COLS * L.ROWS - 1,
+    "turning it back on restores every dot on the very next draw")
+
+  run.loader.modOptions.bills_pc_plus = nil
+end
+
 -- ------- a carried Pokemon stays on the panel
 -- pickUp removes the mon from the box, so reading the cell under the cursor
 -- shows either nothing or -- worse -- whichever mon compacted into that

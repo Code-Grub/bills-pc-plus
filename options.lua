@@ -29,4 +29,16 @@ return {
     label = "EXTRA BOXES",
     default = false,
   },
+  -- The dot that marks an empty grid cell (drawEmptySlot in main.lua) is
+  -- what tells a gap in a box apart from plain background.  Default ON to
+  -- match what every player already has on screen; the row exists for the
+  -- player who finds the mark distracting rather than useful, and turning
+  -- it off changes nothing else -- occupied slots, the cursor and the shiny
+  -- mark are untouched.
+  {
+    key = "box_indicator_dots",
+    type = "toggle",
+    label = "INDICATOR DOTS",
+    default = true,
+  },
 }

@@ -573,7 +573,20 @@ return function(mod)
   -- correctly tinted.
   local EMPTY_DOT = 1
   local EMPTY_DOT_OFFSET = math.floor((Layout.CELL - EMPTY_DOT) / 2)
+
+  -- Read per draw, same as showDVs above and for the same reason: the
+  -- options row is reachable while the PC is open, so re-reading lands the
+  -- toggle on the next frame rather than the next visit.  nil means the
+  -- schema never loaded, and the dot players have today is the right
+  -- answer when we cannot ask.
+  local function showBoxIndicatorDots()
+    local value = mod.options:get("box_indicator_dots")
+    if value == nil then return true end
+    return value
+  end
+
   local function drawEmptySlot(x, y)
+    if not showBoxIndicatorDots() then return end
     love.graphics.setColor(0, 0, 0, 1)
     love.graphics.rectangle("fill", x + EMPTY_DOT_OFFSET, y + EMPTY_DOT_OFFSET,
       EMPTY_DOT, EMPTY_DOT)
