@@ -3,6 +3,12 @@
 Written in the style described in [docs/changelog-style.md](docs/changelog-style.md):
 what changed for the player, with the reasoning left in the commit history.
 
+## 0.17.0
+
+- A new INDICATOR DOTS option lets you turn off the small dot Bill's PC Plus
+  draws in every empty box slot. It's on by default, so nothing changes
+  unless you turn it off.
+
 ## 0.16.1
 
 - With EXTRA BOXES on, catching a Pokemon with a full party and full boxes
