@@ -1495,6 +1495,32 @@ return function(mod)
     return next(game)
   end)
 
+  -- Gold's own PC menu lists CHANGE BOX above our screen
+  -- (src/ui/gen2/PcMenu.lua).  The grid pages boxes itself, so the row is a
+  -- second way to do what the screen already does, and Gen 1 has no such row
+  -- because the mod replaces vanilla's whole BoxMenu.  On Gold that menu is
+  -- the engine's, so the row is dropped here through ui.pc.items, whose
+  -- payload is Bill's PC's own rows and whose rows carry an id.
+  --
+  -- The hook is shared by name with Gen 1, where it sees the which-PC list
+  -- and rows have no id; nothing else uses "changebox" either.  So it is
+  -- keyed on the id and inert there, and it hands back the SAME list when
+  -- there is nothing to drop.  SEE YA! is appended by the menu after the hook,
+  -- so this cannot orphan the exit.
+  mod.hooks:wrap("ui.pc.items", function(next, game, items)
+    local rows = next(game, items)
+    if type(rows) ~= "table" then return rows end
+    local kept, dropped = {}, false
+    for _, row in ipairs(rows) do
+      if type(row) == "table" and row.id == "changebox" then
+        dropped = true
+      else
+        kept[#kept + 1] = row
+      end
+    end
+    return dropped and kept or rows
+  end)
+
   -- The entry screen is the withdraw/deposit menu, the same shape vanilla
   -- src/ui/BoxMenu.lua returns.  WITHDRAW and DEPOSIT carry keepOpen so the
   -- menu stays on the stack beneath the grid (src/ui/Menu.lua:93); B in the
