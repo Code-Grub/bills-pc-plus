@@ -3,6 +3,14 @@
 Written in the style described in [docs/changelog-style.md](docs/changelog-style.md):
 what changed for the player, with the reasoning left in the commit history.
 
+## 0.18.0
+
+- Each type in the stats strip is now a coloured badge, like the later
+  games' summary screens, with both types side by side. A new TYPE BADGES
+  option turns it back to plain text. It's on by default.
+- On Gold, Silver and Crystal the PC menu no longer lists CHANGE BOX. Switch
+  boxes with left and right on the box screen, as on Red, Blue and Yellow.
+
 ## 0.17.0
 
 - A new INDICATOR DOTS option lets you turn off the small dot Bill's PC Plus
