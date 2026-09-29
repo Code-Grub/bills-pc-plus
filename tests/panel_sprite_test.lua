@@ -17,6 +17,9 @@ local T = require("tests.modkit")
 local Data = require("tests.modkit.fixtures").fresh()
 
 local run = T.sdk.loadMod("mods/bills_pc_plus", { data = Data })
+-- These cases pin the PLAIN-TEXT type line (or the panel, for panel_sprite):
+-- TYPE BADGES defaults on, and its own cases are in type_badges_draw_test.lua.
+run.loader.modOptions.bills_pc_plus = { type_badges = false }
 T.eq(#run.errors, 0, "loads clean (" .. tostring(run.errors[1]) .. ")")
 
 local Screens = require("src.ui.Screens")
