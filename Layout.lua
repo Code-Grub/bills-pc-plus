@@ -282,6 +282,50 @@ Layout.STATS_GAP_5 = 4
 -- and into field 5 as the reverse, and both are false.
 Layout.STATS_DV_SHARED_CX = 118
 
+-- The type line as pills (the TYPE BADGES option).  A pill is 12px tall and
+-- sits across the strip's last TWO rows -- the blank separator and the type
+-- row, 16px between them -- with 2px of air above and below.  That air is
+-- what keeps doing the blank row's job of setting the type apart from the DV
+-- table, so the pill does not run flush under the numbers.
+--
+-- Widths follow the label (see TypeBadges.pillWidth), so the room is spent
+-- rather than reserved: the widest pair either generation prints is
+-- ELECTRIC/FLYING (Zapdos), and
+--
+--   STATS_X 8 + margin 4 + [4 + 64 + 4] + gap 4 + [4 + 48 + 4] = 144
+--
+-- lands the last pill on x=144, the same right edge the stats columns end on,
+-- so the widest case is flush with the table above it and no tighter.
+Layout.BADGE_H = 12
+Layout.BADGE_PAD = 4     -- label to pill edge, each side
+Layout.BADGE_GAP = 4     -- between the two pills
+Layout.BADGE_MARGIN = 4  -- strip's left edge to the first pill
+
+-- A pill is its label plus padding on each side.
+function Layout.pillWidth(labelWidth)
+  return labelWidth + 2 * Layout.BADGE_PAD
+end
+
+-- The pills' x and width for a list of pill widths, left to right on one
+-- line.  Pure, so the arithmetic is testable without an engine.
+function Layout.badgeSpans(widths)
+  local spans, x = {}, Layout.STATS_X + Layout.BADGE_MARGIN
+  for i, w in ipairs(widths) do
+    spans[i] = { x = x, w = w }
+    x = x + w + Layout.BADGE_GAP
+  end
+  return spans
+end
+
+-- The pill's top edge.  The type row is the strip's last (row 4) with the
+-- blank row above it; hiding the DVs raises the type line one row and the
+-- pill goes with it, exactly as the text line does.
+function Layout.badgeY(dvsHidden)
+  local blankRow = Layout.STATS_Y + 3 * Layout.ROW
+  if dvsHidden then blankRow = blankRow - Layout.ROW end
+  return blankRow + (2 * Layout.ROW - Layout.BADGE_H) / 2
+end
+
 function Layout.slotXY(index)
   local i = index - 1
   return Layout.GRID_X + (i % Layout.COLS) * Layout.CELL,

@@ -41,4 +41,16 @@ return {
     label = "INDICATOR DOTS",
     default = true,
   },
+  -- The type line in the stats strip (drawStats in main.lua) as coloured
+  -- pills, one per type, in the style of the later generations' summary
+  -- screens.  Default ON: it is the mod's look now, and the row exists for
+  -- the player who wants the plain ELECTRIC/FLYING text back.  Turning it
+  -- off changes only that line -- the pills and the text occupy the same
+  -- row, so nothing else in the strip moves either way.
+  {
+    key = "type_badges",
+    type = "toggle",
+    label = "TYPE BADGES",
+    default = true,
+  },
 }

@@ -36,6 +36,7 @@ return function(mod)
   local BoxSession = sibling("BoxSession.lua")
   local Layout = sibling("Layout.lua")
   local Engine = sibling("Engine.lua")
+  local TypeBadges = sibling("TypeBadges.lua")
   if not (BoxSession and Layout and Engine) then return end
 
   -- The same file manifest.options_schema names, so the manager's auto-UI
@@ -125,6 +126,14 @@ return function(mod)
     local value = mod.options:get("dv_display")
     if value == nil then return true end
     return value
+  end
+
+  -- Same read-per-draw pattern as showDVs, and the same nil rule: nil means
+  -- the schema never loaded, and the line players have today -- the plain
+  -- text -- is the right answer when we cannot ask.  With the schema loaded
+  -- and nothing stored the default is ON.
+  local function showTypeBadges()
+    return mod.options:get("type_badges") == true
   end
 
   local Screen = {}
@@ -944,10 +953,30 @@ return function(mod)
         -- pokemon.lua keeps both bytes, so CYNDAQUIL arrives as
         -- { FIRE, FIRE } and read this line "FIRE/FIRE"; Gen 1's collapses
         -- them to one entry, so t[2] is nil there and nothing moves.
-        if t[2] and t[2] ~= t[1] then
-          line = line .. "/" .. TypeChart.displayName(t[2])
+        local second = t[2] and t[2] ~= t[1] and TypeChart.displayName(t[2])
+        if showTypeBadges() then
+          -- Pills, one per type on one line.  The label is the same display
+          -- name the text line prints; the pill is as wide as its label, so
+          -- the widest real pair (ELECTRIC/FLYING) is flush with the stat
+          -- columns' right edge (Layout.lua, BADGE_H).  The rect is exempt
+          -- from Gen 1's palette shading, which would flatten the colours
+          -- to four shades; Gold has no such pass and the pills are drawn
+          -- outside its palette shader, so its true colour needs no exemption.
+          local names = { TypeChart.displayName(t[1]), second or nil }
+          local widths = {}
+          for i, n in ipairs(names) do widths[i] = Layout.pillWidth(Font.width(n)) end
+          local spans = Layout.badgeSpans(widths)
+          local py = Layout.badgeY(not showDVs())
+          for i, n in ipairs(names) do
+            TypeBadges.drawPill(n, n, spans[i].x, py, spans[i].w, Layout.BADGE_H)
+          end
+          local last = spans[#spans]
+          PaletteFX.markTrueColor(spans[1].x, py,
+            last.x + last.w - spans[1].x, Layout.BADGE_H)
+        else
+          if second then line = line .. "/" .. second end
+          Font.draw(line, Layout.STATS_X, typeY)
         end
-        Font.draw(line, Layout.STATS_X, typeY)
       end
     end
   end

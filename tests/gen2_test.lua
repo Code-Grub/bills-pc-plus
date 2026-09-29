@@ -12,6 +12,9 @@ local Data = require("tests.modkit.fixtures").fresh()
 -- A gate skip is deliberately NOT an error, so #run.errors == 0 passes for a
 -- mod that never ran a line.  Assert the state, not just the error count.
 local run = T.sdk.loadMod("mods/bills_pc_plus", { data = Data, generation = 2 })
+-- These cases pin the PLAIN-TEXT type line (or the panel, for panel_sprite):
+-- TYPE BADGES defaults on, and its own cases are in type_badges_draw_test.lua.
+run.loader.modOptions.bills_pc_plus = { type_badges = false }
 T.eq(#run.errors, 0,
   "loads with no boot errors on gen 2 (" .. tostring(run.errors[1]) .. ")")
 T.eq(run.mod and run.mod.state, "loaded",
