@@ -21,7 +21,7 @@ rearrange your boxes freely. It works on Red, Blue and Yellow, and on Gold,
 Silver and Crystal.
 
 <p align="center">
-  <img src="images/demo_box_v6.gif" width="480" alt="Box view: the 5x4 grid with gaps beside the selected Pokemon's sprite and stats, showing the cursor blink, MOVE and paging"/><br/>
+  <img src="images/demo_box_v7.gif" width="480" alt="Box view: the 5x4 grid with gaps beside the selected Pokemon's sprite and stats, showing the cursor blink, MOVE and paging"/><br/>
   <sub>Box view: free paging, grab-and-place with gaps</sub>
 </p>
 
