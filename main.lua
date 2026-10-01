@@ -688,7 +688,39 @@ return function(mod)
   -- path: Sprites.path runs the pokemon.sprite hook with the mon in ctx, so a
   -- hook can return one file for two mons and flag only one of them, and the
   -- flag is read fresh on every call.
+  -- A sprite mod that animates fronts (Crystal Animated Sprites) answers the
+  -- pokemon.sprite hook with the frame for `seconds`.  Sprites.path drops
+  -- extra options, so ask Sprites.pic, which hands its whole ctx to the hook.
+  -- Nothing animating means the hook leaves the path alone and this returns
+  -- nil, so the picture below is the one the panel always drew.  The clock
+  -- restarts whenever the cursor lands on another mon.
+  local function animatedSprite(self, mon)
+    if self.engine.gen2 or not (love.timer and mon) then return nil end
+    local data = self.game.data
+    local def = data and data.pokemon and data.pokemon[mon.species]
+    if not (def and def.spriteFront) then return nil end
+    local now = love.timer.getTime()
+    if self._animMon ~= mon then self._animMon, self._animAt = mon, now end
+    local path, trueColor = Sprites.pic(def.spriteFront, {
+      species = mon.species, side = "front", kind = "summary", mon = mon,
+      data = data, seconds = now - self._animAt,
+    })
+    if not path or path == def.spriteFront then return nil end
+    local cached = self._spriteCache and self._spriteCache[path]
+    if not cached then
+      local ok, img = pcall(love.graphics.newImage, path)
+      cached = { img = ok and img or nil }
+      local cache = spriteCache(self)
+      cache[path] = cached
+      self._spriteCacheN = self._spriteCacheN + 1
+    end
+    if not cached.img then return nil end
+    return cached.img, trueColor
+  end
+
   local function panelSprite(self, mon)
+    local animated, animatedTrueColor = animatedSprite(self, mon)
+    if animated then return animated, animatedTrueColor end
     local hit = self._spriteCache and self._spriteCache[mon]
     if hit == nil then
       local img, trueColor = self.engine:summarySprite(self.game, mon)

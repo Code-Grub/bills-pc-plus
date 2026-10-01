@@ -181,6 +181,38 @@ do
   T.eq(builds, 2, "moving to another mon builds that mon's picture")
 end
 
+-- ------- a sprite mod that animates fronts answers the hook with a frame for the
+-- panel's clock; with none installed the hook leaves the path alone
+do
+  local Sprites = require("src.pokemon.Sprites")
+  local realPic, realTimer = Sprites.pic, love.timer
+  local realNewImage = love.graphics.newImage
+  local clock, asked, loaded = 100, {}, {}
+  love.timer = { getTime = function() return clock end }
+  love.graphics.newImage = function(path) loaded[#loaded + 1] = path return art(56, 56) end
+  Sprites.pic = function(path, ctx)
+    asked[#asked + 1] = ctx
+    return ctx.seconds >= 1 and "frames/1.png" or "frames/0.png", false
+  end
+  builds, nextArt = 0, art(56, 56)
+  local grid = openGrid({ newMon(5), newMon(6) })
+  drawn(grid)
+  T.eq(asked[1].kind, "summary", "the panel asks for the summary picture")
+  T.eq(asked[1].seconds, 0, "with the clock at zero when the mon first shows")
+  T.eq(loaded[#loaded], "frames/0.png", "and draws the frame it was given")
+  T.eq(builds, 0, "no summary screen is built while a frame is served")
+  clock = 101.5
+  drawn(grid)
+  T.eq(loaded[#loaded], "frames/1.png", "later the next frame is drawn")
+  local count = #loaded
+  drawn(grid)
+  T.eq(#loaded, count, "a frame already loaded is not loaded again")
+  grid.cursor = 2
+  drawn(grid)
+  T.eq(asked[#asked].seconds, 0, "moving to another mon restarts the clock")
+  Sprites.pic, love.timer, love.graphics.newImage = realPic, realTimer, realNewImage
+end
+
 -- ------- a summary screen that fails to build does not take the panel down
 do
   builds, nextArt, failBuild = 0, nil, true
