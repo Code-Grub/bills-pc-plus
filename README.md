@@ -108,6 +108,30 @@ that view.
 
 Newest release: [releases/latest](https://github.com/Code-Grub/bills-pc-plus/releases/latest). Full history in [CHANGELOG.md](CHANGELOG.md).
 
+## More mods by Code-Grub
+
+Other mods for the Gen1Recomp project. Click a card to open its page.
+
+<table>
+  <tr>
+    <td align="center" valign="top" width="33%">
+      <a href="https://github.com/Code-Grub/pokebag-plus"><img src="https://github.com/Code-Grub/pokebag-plus/raw/master/images/thumbnail.png" width="128" alt="PokeBag+"/></a><br/>
+      <a href="https://github.com/Code-Grub/pokebag-plus"><b>PokeBag+</b></a><br/>
+      <sub>Four Gen 2 pockets, TM and HM move names, and an item preview window.</sub>
+    </td>
+    <td align="center" valign="top" width="33%">
+      <a href="https://github.com/Code-Grub/pokegear-menu"><img src="https://github.com/Code-Grub/pokegear-menu/raw/master/images/thumbnail.png" width="128" alt="PokéGear Menu"/></a><br/>
+      <a href="https://github.com/Code-Grub/pokegear-menu"><b>PokéGear Menu</b></a><br/>
+      <sub>A handheld START menu with a grid of apps, drawn in full colour.</sub>
+    </td>
+    <td align="center" valign="top" width="33%">
+      <a href="https://github.com/Code-Grub/crystal-animated-sprites"><img src="https://github.com/Code-Grub/crystal-animated-sprites/raw/master/images/thumbnail.png" width="128" alt="Crystal Animated Sprites"/></a><br/>
+      <a href="https://github.com/Code-Grub/crystal-animated-sprites"><b>Crystal Animated Sprites</b></a><br/>
+      <sub>Crystal's animated sprites in Red, Blue and Yellow, built from your own ROM.</sub>
+    </td>
+  </tr>
+</table>
+
 ## License
 
 MIT. See [LICENSE](LICENSE). Fork it, bundle it, build on it; just keep the
