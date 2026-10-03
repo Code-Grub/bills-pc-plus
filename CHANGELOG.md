@@ -3,6 +3,11 @@
 Written in the style described in [docs/changelog-style.md](docs/changelog-style.md):
 what changed for the player, with the reasoning left in the commit history.
 
+## 0.18.2
+
+- The PC screens now follow the MENU SPEED option like the other menus,
+  instead of running at the overworld's speed.
+
 ## 0.18.0
 
 - Each type in the stats strip is now a coloured badge, like the later
