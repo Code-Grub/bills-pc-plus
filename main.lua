@@ -136,7 +136,10 @@ return function(mod)
     return mod.options:get("type_badges") == true
   end
 
-  local Screen = {}
+  -- isMenu opts the grid into MENU SPEED (Game.speedCategoryInStack).  Vanilla
+  -- BoxMenu carries it, so without it the grid, which replaces BoxMenu, would
+  -- keep following OVERWORLD SPEED and run fast beside every other menu.
+  local Screen = { isMenu = true }
   Screen.__index = Screen
 
   -- A full-screen state, so it owns the frame.  src/core/StateStack.lua:44
@@ -1666,6 +1669,8 @@ return function(mod)
         })
         -- the session outlives each grid push, so expose it on the menu
         menu.session = session
+        -- vanilla's BoxMenu is isMenu; so is its replacement (see Screen)
+        menu.isMenu = true
 
         -- ...and because it outlives them, this is where a visit becomes
         -- visible to the rest of the game again.  save.boxes is stale for
