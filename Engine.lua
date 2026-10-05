@@ -289,13 +289,30 @@ end
 -- RestorePPOfDepositedPokemon (engine/pokemon/move_mon.asm:633-635), and
 -- CalcTempmonStats refills a BOXMON from MAXHP, because Gold's box_struct
 -- has neither MON_HP nor MON_STATUS to store the difference in
--- (macros/ram.asm:7-26).  Gen 1's box_struct DOES hold current HP -- which
--- is why BoxSession:withdraw only has to rebuild the stat block -- so
--- healing on the way in is right on Gold and would be a behaviour change on
--- Red.  Hence the seam rather than an unconditional call.
-function Engine:enterBox(mon)
-  if not self.gen2 then return end
-  require("src.core.gen2.Boxes").enterBox(mon)
+-- (macros/ram.asm:7-26).  Gen 1's box_struct DOES hold current HP, so on
+-- Red healing here is a behaviour change, and it is the PC HEALS option's:
+-- `heal` is that option's answer, and Gold ignores it because Gold's rule is
+-- not optional.  Pokemon.heal is the Pokemon Center routine -- full HP,
+-- status cleared, every move's PP back to base plus its PP Ups -- which is
+-- exactly what Gold's deposit does too.
+function Engine:enterBox(mon, heal)
+  if self.gen2 then
+    require("src.core.gen2.Boxes").enterBox(mon)
+  elseif heal and mon and mon.stats then
+    require("src.pokemon.Pokemon").heal(mon)
+  end
+end
+
+-- Called on a mon the instant it leaves a box for the party.
+--
+-- Gen 1 only, and only HP and status: a mon boxed before PC HEALS existed is
+-- still carrying whatever it was hurt with, and with the HP line gone from
+-- the screen the player has no way to see it.  Gold needs nothing here --
+-- ensureStats' refreshStats refills a BOXMON from MAXHP already.
+function Engine:leaveBox(mon, heal)
+  if self.gen2 or not heal or not (mon and mon.stats) then return end
+  mon.hp = mon.stats.hp
+  mon.status = nil
 end
 
 -- Gold's icon sheets are 16px wide with the two animation frames stacked

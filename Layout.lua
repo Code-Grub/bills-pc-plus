@@ -69,8 +69,16 @@ Layout.SPRITE_CX = 124
 -- floating 4px over it
 Layout.SPRITE_BASELINE = 80
 
-function Layout.spritePos(pw, ph)
-  return Layout.SPRITE_CX - math.floor(pw / 2), Layout.SPRITE_BASELINE - ph
+-- With PC HEALS on the HP line is gone, so its row is free and the sprite can
+-- stand on the frame floor itself: a full-height pic then clears the plate by
+-- a whole row instead of exactly zero.  Still a multiple of 8, because the
+-- sprite's SGB zone is a block of whole tiles (spriteZone).
+Layout.SPRITE_BASELINE_NO_HP = 88
+
+-- `baseline` is optional: omit it for the layout that keeps the HP line.
+function Layout.spritePos(pw, ph, baseline)
+  return Layout.SPRITE_CX - math.floor(pw / 2),
+    (baseline or Layout.SPRITE_BASELINE) - ph
 end
 
 -- The uniform scale that fits a w x h picture inside a limit x limit square.
@@ -140,8 +148,8 @@ end
 -- the name and level above it would not shift even if it did.
 Layout.SPRITE_MAX = 56
 
-function Layout.spriteZone()
-  local x, y = Layout.spritePos(Layout.SPRITE_MAX, Layout.SPRITE_MAX)
+function Layout.spriteZone(baseline)
+  local x, y = Layout.spritePos(Layout.SPRITE_MAX, Layout.SPRITE_MAX, baseline)
   local tx, ty = math.floor(x / 8), math.floor(y / 8)
   return tx, ty, tx + Layout.SPRITE_MAX / 8 - 1, ty + Layout.SPRITE_MAX / 8 - 1
 end

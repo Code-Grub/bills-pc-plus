@@ -7,8 +7,10 @@ local Data = require("tests.modkit.fixtures").fresh()
 
 local run = T.sdk.loadMod("mods/bills_pc_plus", { data = Data })
 -- These cases pin the PLAIN-TEXT type line (or the panel, for panel_sprite):
--- TYPE BADGES defaults on, and its own cases are in type_badges_draw_test.lua.
-run.loader.modOptions.bills_pc_plus = { type_badges = false }
+-- TYPE BADGES and PC HEALS default on; their cases are in type_badges_draw_test.lua
+-- and pc_heals_test.lua, so this file pins both off to keep testing the screen
+-- it was written against.
+run.loader.modOptions.bills_pc_plus = { type_badges = false, pc_heals = false }
 T.eq(#run.errors, 0, "loads clean (" .. tostring(run.errors[1]) .. ")")
 
 local Screens = require("src.ui.Screens")
@@ -678,14 +680,14 @@ do
     return n
   end
 
-  run.loader.modOptions.bills_pc_plus = { box_indicator_dots = false, type_badges = false }
+  run.loader.modOptions.bills_pc_plus = { box_indicator_dots = false, type_badges = false, pc_heals = false }
   T.eq(countDots(), 0, "with the option off, no empty cell draws a dot")
 
   run.loader.modOptions.bills_pc_plus.box_indicator_dots = true
   T.eq(countDots(), L.COLS * L.ROWS - 1,
     "turning it back on restores every dot on the very next draw")
 
-  run.loader.modOptions.bills_pc_plus = { type_badges = false }
+  run.loader.modOptions.bills_pc_plus = { type_badges = false, pc_heals = false }
 end
 
 -- ------- a carried Pokemon stays on the panel
@@ -1490,13 +1492,13 @@ do
   end
 
   -- nothing stored yet, so mod.options:get falls through to the schema
-  run.loader.modOptions.bills_pc_plus = { type_badges = false }
+  run.loader.modOptions.bills_pc_plus = { type_badges = false, pc_heals = false }
   local dv, types, marks = drawOnce()
   T.check(dv, "with nothing stored the DV line draws: the schema default is ON")
   T.eq(types, L.STATS_Y + 4 * L.ROW,
     "and the type line sits on the last row, a blank one between them")
 
-  run.loader.modOptions.bills_pc_plus = { dv_display = false, type_badges = false }
+  run.loader.modOptions.bills_pc_plus = { dv_display = false, type_badges = false, pc_heals = false }
   dv, types, marks = drawOnce()
   T.eq(dv, false, "with the option off the DV line does not draw")
   T.check(types, "the type line below it is untouched")
@@ -1514,7 +1516,7 @@ do
   dv = drawOnce()
   T.check(dv, "turning it back on restores the line on the very next draw")
 
-  run.loader.modOptions.bills_pc_plus = { type_badges = false }
+  run.loader.modOptions.bills_pc_plus = { type_badges = false, pc_heals = false }
 end
 
 run.release()

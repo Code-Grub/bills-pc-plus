@@ -23,7 +23,7 @@ return function(game)
 
   local save = game.save
   save.boxes = { {
-    mon("PIKACHU", 21, { dvs = { attack = 15, defense = 10, speed = 10, special = 10 }, status = "PAR" }),
+    mon("PIKACHU", 21, { dvs = { attack = 15, defense = 10, speed = 10, special = 10 } }),
     mon("CHARMANDER", 9),
     mon("SQUIRTLE", 12),
     mon("BULBASAUR", 13),
