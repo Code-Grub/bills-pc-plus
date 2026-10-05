@@ -53,4 +53,18 @@ return {
     label = "TYPE BADGES",
     default = true,
   },
+  -- PC HEALS makes the box what it is in the later games: a Pokemon that goes
+  -- into the PC comes out at full HP, cured, with its PP back.  Gold already
+  -- does this -- its box_struct has nowhere to keep HP -- so on Gen 2 the
+  -- option changes only the screen; on Gen 1 it changes the rules, which is
+  -- why it is a row at all and not a quiet fix.  Default ON, because a stored
+  -- HP the screen no longer shows would be a trap.  Turning it off restores
+  -- Red's behaviour exactly: HP and status stay as they were, and the HP
+  -- line comes back under the sprite.
+  {
+    key = "pc_heals",
+    type = "toggle",
+    label = "PC HEALS",
+    default = true,
+  },
 }

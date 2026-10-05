@@ -21,12 +21,12 @@ rearrange your boxes freely. It works on Red, Blue and Yellow, and on Gold,
 Silver and Crystal.
 
 <p align="center">
-  <img src="images/demo_box_v7.gif" width="480" alt="Box view: the 5x4 grid with gaps beside the selected Pokemon's sprite and stats, showing the cursor blink, MOVE and paging"/><br/>
+  <img src="images/demo_box_v8.gif" width="480" alt="Box view: the 5x4 grid with gaps beside the selected Pokemon's sprite and stats, showing the cursor blink, MOVE and paging"/><br/>
   <sub>Box view: free paging, grab-and-place with gaps</sub>
 </p>
 
 <p align="center">
-  <img src="images/demo_deposit_v6.gif" width="480" alt="Deposit view: the party row under the box grid, showing the party cursor and destination paging"/><br/>
+  <img src="images/demo_deposit_v8.gif" width="480" alt="Deposit view: the party row under the box grid, showing the party cursor and destination paging"/><br/>
   <sub>Deposit view: party row and destination paging</sub>
 </p>
 
@@ -40,6 +40,12 @@ Silver and Crystal.
   the grid.
 - **DV display:** the hidden DV numbers on the stats strip. On by default;
   turn it off in OPTIONS → MODS → BILL'S PC PLUS → DV DISPLAY.
+- **PC heals:** a Pokemon that goes into the PC comes out at full HP, cured,
+  with its PP restored, the way the later games work (Gold, Silver and Crystal
+  already did). Because a boxed Pokemon is always whole, the HP line under the
+  sprite is gone and the sprite stands a row lower. On by default; turn it off
+  in OPTIONS → MODS → BILL'S PC PLUS → PC HEALS to get Red, Blue and Yellow's
+  behaviour back, where boxed Pokemon keep the HP they went in with.
 - **Extra boxes:** OPTIONS → MODS → BILL'S PC PLUS → EXTRA BOXES gives you 99
   boxes instead of 12 (Red, Blue, Yellow) or 14 (Gold, Silver, Crystal), each
   holding 20. Off by default. Turning it off never deletes anything: Pokemon

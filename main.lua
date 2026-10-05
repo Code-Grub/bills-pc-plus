@@ -136,6 +136,20 @@ return function(mod)
     return mod.options:get("type_badges") == true
   end
 
+  -- PC HEALS, same read-per-draw pattern and the same nil rule (nil means the
+  -- schema never loaded, so the behaviour players have today: no healing).
+  -- It decides three things that must agree: whether the session heals, whether
+  -- the HP line is drawn, and where the sprite stands -- a screen that hid HP
+  -- while the PC kept it would be a trap.
+  local function pcHeals()
+    return mod.options:get("pc_heals") == true
+  end
+
+  -- The row the sprite stands on: the freed HP row when the line is gone.
+  local function spriteBaseline()
+    return pcHeals() and Layout.SPRITE_BASELINE_NO_HP or Layout.SPRITE_BASELINE
+  end
+
   -- isMenu opts the grid into MENU SPEED (Game.speedCategoryInStack).  Vanilla
   -- BoxMenu carries it, so without it the grid, which replaces BoxMenu, would
   -- keep following OVERWORLD SPEED and run fast beside every other menu.
@@ -177,7 +191,7 @@ return function(mod)
     local mon = self:focused()
     local pal = mon and PaletteFX.monPal(game.data, mon.species)
     if not (zones and pal) then return zones end
-    zones[#zones + 1] = PaletteFX.zone(pal, Layout.spriteZone())
+    zones[#zones + 1] = PaletteFX.zone(pal, Layout.spriteZone(spriteBaseline()))
     return zones
   end
 
@@ -760,7 +774,7 @@ return function(mod)
       local pw, ph = sprite:getDimensions()
       local k = Layout.fitScale(pw, ph, Layout.SPRITE_MAX)
       local dw, dh = pw * k, ph * k
-      local px, py = Layout.spritePos(dw, dh)
+      local px, py = Layout.spritePos(dw, dh, spriteBaseline())
       -- The pic is grayscale art on BOTH generations, and each colours it
       -- its own way.  Gen 1's SGB zone does it after the fact and this
       -- call must stay the bare draw it always was, so the seam hands
@@ -903,8 +917,12 @@ return function(mod)
     end
     local stats = mon.stats
     if stats then
-      local hpText = ("%d/%d"):format(mon.hp or 0, stats.hp or 0)
-      Font.draw(hpText, 124 - #hpText * 4, Layout.COUNT_Y)
+      -- Gone with PC HEALS: a boxed mon is always whole, so the line would
+      -- only ever read "17/17".  The sprite stands on its row instead.
+      if not pcHeals() then
+        local hpText = ("%d/%d"):format(mon.hp or 0, stats.hp or 0)
+        Font.draw(hpText, 124 - #hpText * 4, Layout.COUNT_Y)
+      end
       -- Header row, then values under it.  Every cell is right-aligned into
       -- its field rather than space-padded into position: Font is
       -- proportional under a TTF font pack, so "%3d" would land the columns
@@ -1591,6 +1609,7 @@ return function(mod)
     return {
       new = function(game, opts)
         local session = BoxSession.new(game, engine)
+        session.heals = pcHeals
         live = session -- the wrapper above refuses saves for this one
         -- A visit can be abandoned without exit ever running (a soft reset
         -- pops the whole stack), and a deferral left over from one must not

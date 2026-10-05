@@ -18,8 +18,10 @@ local Data = require("tests.modkit.fixtures").fresh()
 
 local run = T.sdk.loadMod("mods/bills_pc_plus", { data = Data })
 -- These cases pin the PLAIN-TEXT type line (or the panel, for panel_sprite):
--- TYPE BADGES defaults on, and its own cases are in type_badges_draw_test.lua.
-run.loader.modOptions.bills_pc_plus = { type_badges = false }
+-- TYPE BADGES and PC HEALS default on; their cases are in type_badges_draw_test.lua
+-- and pc_heals_test.lua, so this file pins both off to keep testing the screen
+-- it was written against.
+run.loader.modOptions.bills_pc_plus = { type_badges = false, pc_heals = false }
 T.eq(#run.errors, 0, "loads clean (" .. tostring(run.errors[1]) .. ")")
 
 local Screens = require("src.ui.Screens")
@@ -169,6 +171,19 @@ do
   builds, nextArt = 0, art(48, 56)
   local rects = drawn(openGrid({ newMon(9) }))
   T.eq(fmt(rects[1]), "100,24 48x56", "art that fits is drawn at its own size")
+end
+
+-- ------- PC HEALS: the HP line is gone, so the sprite stands one row lower
+do
+  builds, nextArt = 0, art(48, 56)
+  run.loader.modOptions.bills_pc_plus = { type_badges = false, pc_heals = true }
+  local grid = openGrid({ newMon(9) })
+  T.eq(fmt(drawn(grid)[1]), "100,32 48x56",
+    "with PC HEALS on a 56px picture stands on the freed HP row")
+  T.eq(marks[#marks], "100,32 48x56", "and its full colour follows it down")
+  run.loader.modOptions.bills_pc_plus = { type_badges = false, pc_heals = false }
+  T.eq(fmt(drawn(grid)[1]), "100,24 48x56",
+    "turning it off lifts the picture back on the very next draw")
 end
 
 -- ------- each mon gets its own picture

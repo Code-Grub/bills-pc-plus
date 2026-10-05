@@ -59,6 +59,7 @@ local DEFAULT_ENGINE = {
   canDeposit = function() return true end,
   leaveParty = function() end,
   enterBox = function() end,
+  leaveBox = function() end,
 }
 
 -- Order-sensitive digest of the mons a layout was recorded against.
@@ -239,6 +240,12 @@ function BoxSession:box(n)
 end
 
 -- occupied cells of a box, sparse-safe
+-- Whether a mon entering or leaving a box is healed (the PC HEALS option).
+-- A method so main.lua can shadow it with an instance field that reads the
+-- option live; the default is "no", which is what a session nobody wired up
+-- -- every test double, a game with the schema unloaded -- should do.
+function BoxSession:heals() return false end
+
 function BoxSession:count(n)
   return cellCount(self:box(n))
 end
@@ -309,6 +316,9 @@ function BoxSession:withdraw(boxNum, slot)
   if not mon then return false, "no_mon" end
   if #self.save.party >= Party.MAX then return false, "party_full" end
   self.engine:ensureStats(self.data, mon)
+  -- after ensureStats, which is what gives a decoded mon the stat block the
+  -- heal reads its maximum from
+  if self.engine.leaveBox then self.engine:leaveBox(mon, self:heals()) end
   s[slot] = nil
   table.insert(self.save.party, mon)
   self.dirty = true
@@ -349,7 +359,7 @@ function BoxSession:deposit(partySlot, boxNum)
   self.engine:leaveParty(self.save, partySlot)
   -- and Gold's box_struct has no MON_HP or MON_STATUS, so a mon entering a
   -- box is restored on the way in.  Gen 1's does, so this is a no-op there.
-  self.engine:enterBox(mon)
+  self.engine:enterBox(mon, self:heals())
   -- PIKAHAPPY_DEPOSITED (engine/pokemon/bills_pc.asm:247), through the
   -- seam: Gold's happiness enum has no storage event, and the direct call
   -- this replaced read nil on Gold and raised -- one line after
