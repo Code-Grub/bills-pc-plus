@@ -3,6 +3,17 @@
 Written in the style described in [docs/changelog-style.md](docs/changelog-style.md):
 what changed for the player, with the reasoning left in the commit history.
 
+## 0.19.0
+
+- A new PC HEALS option, on by default: a Pokemon that goes into the PC comes
+  out at full HP, cured, with its PP restored, like the later games. Gold,
+  Silver and Crystal already worked this way; on Red, Blue and Yellow it is
+  new, and turning the option off brings back the old behaviour. Pokemon you
+  boxed hurt before updating are healed when you take them out.
+- With PC HEALS on, the HP line under the sprite is gone, since a boxed
+  Pokemon is always at full HP, and the sprite stands a row lower with more
+  room under its name.
+
 ## 0.18.2
 
 - The PC screens now follow the MENU SPEED option like the other menus,
