@@ -3,6 +3,15 @@
 Written in the style described in [docs/changelog-style.md](docs/changelog-style.md):
 what changed for the player, with the reasoning left in the commit history.
 
+## 0.20.0
+
+- On Gold, Silver and Crystal, a Pokemon holding an item now shows the party
+  menu's little item marker on its icon in the box and deposit views, so you
+  can see which ones are holding something without taking them out.
+- Shiny Pokemon now show two small white diamonds in the top-right corner of
+  their icon, so you can spot them while scanning a box. This works on every
+  game, and an egg never shows one.
+
 ## 0.19.0
 
 - A new PC HEALS option, on by default: a Pokemon that goes into the PC comes
