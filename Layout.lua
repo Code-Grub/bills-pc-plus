@@ -334,6 +334,39 @@ function Layout.badgeY(dvsHidden)
   return blankRow + (2 * Layout.ROW - Layout.BADGE_H) / 2
 end
 
+-- The shiny mark on a grid icon: two diamonds in the cell's top-right corner,
+-- a large one and a small one up and to its right, each a white fill inside a
+-- black edge.  Pixel art, so it is rows rather than a drawn shape.
+--
+-- Icons fill their 16x16 cell, so the mark sits ON the art, and that is what
+-- fixes its look: white alone vanishes on the cell's white ground and black
+-- alone is a speck, so each diamond is black with the white inside.  A thin
+-- four-point sparkle was tried first and rejected -- the black edge turns its
+-- long arms into a plus sign -- so these stay plain diamonds.
+--
+-- Returned as rects relative to the cell's top-left, in paint order (a black
+-- diamond, then the white one inside it), so the draw is one loop and the
+-- geometry is testable without an engine.  Every rect stays inside the cell:
+-- the grid scissors each icon to it, and a mark that crossed would be cut.
+local function diamondRects(rects, cx, cy, r)
+  for d = -r, r do
+    local half = r - math.abs(d)
+    rects[#rects + 1] = { x = cx - half, y = cy + d, w = half * 2 + 1,
+      black = true }
+  end
+  -- The inside is one size smaller; a radius-1 diamond has only its centre.
+  local inner = r - 1
+  for d = -inner, inner do
+    local half = inner - math.abs(d)
+    rects[#rects + 1] = { x = cx - half, y = cy + d, w = half * 2 + 1,
+      black = false }
+  end
+end
+
+Layout.SHINY_MARK = {}
+diamondRects(Layout.SHINY_MARK, 11, 4, 2)  -- large: 5x5, x 9..13, y 2..6
+diamondRects(Layout.SHINY_MARK, 14, 1, 1)  -- small: 3x3, x 13..15, y 0..2
+
 function Layout.slotXY(index)
   local i = index - 1
   return Layout.GRID_X + (i % Layout.COLS) * Layout.CELL,

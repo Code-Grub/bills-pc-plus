@@ -228,4 +228,26 @@ do
   T.eq(zy1, 3, "the block starts on row 3, clear of the identity plate")
 end
 
+-- the shiny mark: two diamonds inside the 16px cell, black edge then white fill
+do
+  local rects = L.SHINY_MARK
+  local black, white, minX, minY, maxX, maxY = 0, 0, 99, 99, -1, -1
+  for _, r in ipairs(rects) do
+    if r.black then black = black + 1 else white = white + 1 end
+    minX = math.min(minX, r.x); maxX = math.max(maxX, r.x + r.w - 1)
+    minY = math.min(minY, r.y); maxY = math.max(maxY, r.y)
+  end
+  T.eq(#rects, 12, "the mark is twelve one-pixel rows: two diamonds, edge and fill")
+  T.eq(black, 8, "eight rows of black edge (5 + 3)")
+  T.eq(white, 4, "four rows of white fill (3 + 1)")
+  T.check(minX >= 0 and minY >= 0 and maxX < L.CELL and maxY < L.CELL,
+    "every row stays inside the cell, so the grid's scissor never cuts it")
+  T.eq(rects[1].black, true, "the first diamond's edge is painted before its fill")
+  T.eq(rects[6].black, false, "and the fill after it")
+  -- the diamonds are symmetric: each row's centre is its diamond's centre
+  local cx = rects[3].x + (rects[3].w - 1) / 2   -- the widest row of the large one
+  T.eq(rects[3].w, 5, "the large diamond is five wide at its middle")
+  T.eq(rects[1].x + (rects[1].w - 1) / 2, cx, "and every row is centred on it")
+end
+
 T.finish("bills_pc_plus layout")

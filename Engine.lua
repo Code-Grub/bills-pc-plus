@@ -462,6 +462,39 @@ function Engine:withColors(colors, body)
   return GbcPalette.with(colors, body)
 end
 
+-- The held-item marker for a Gen 2 mon, as (image, row) -- or nil for an empty
+-- hand, an egg, or a cache that predates the HeldItemIcons sheet.
+--
+-- The party menu does not draw a word for what a mon carries: .SpawnItemIcon
+-- (engine/gfx/mon_icons.asm) swaps the icon's bottom-left tile for one of two
+-- marker tiles, mail or item.  Which one, and whether there is one at all, is
+-- Gold's own PartyMenu.heldMarkerRow, so eggs and mail follow the cart's rules
+-- from the one place that already encodes them rather than from a copy here.
+-- The sheet rides data.gen2Icons.heldItem, the entry
+-- src/ui/gen2/PartyMenu.lua:843 reads; an engine without it simply has no
+-- marker and the icon draws whole, as it did before.
+function Engine:heldMarkerFor(game, mon)
+  if not self.gen2 then return nil end
+  local ok, GoldParty = pcall(require, "src.ui.gen2.PartyMenu")
+  local row = ok and GoldParty and GoldParty.heldMarkerRow
+    and GoldParty.heldMarkerRow(mon)
+  if not row then return nil end
+  local icons = game and game.data and game.data.gen2Icons
+  local entry = icons and icons.heldItem
+  local path = entry and entry.image
+  if not path then return nil end
+  local cache = self._iconCache
+  if not cache then cache = {}; self._iconCache = cache end
+  local cached = cache[path]
+  if cached == nil then
+    local loaded, img = pcall(Assets.image, path)
+    cached = loaded and img or false
+    cache[path] = cached
+  end
+  if not cached then return nil end
+  return cached, row
+end
+
 -- Draw a mon's icon with its top-left at (x, y).
 --
 -- Gen 1 delegates rather than reimplementing: PartyMenu.drawIcon does an
@@ -485,15 +518,42 @@ function Engine:drawIcon(game, mon, x, y, animated)
   if not image then return end
   local iw, ih = image:getDimensions()
   local frame = animated and 1 or 0
-  local quad = love.graphics.newQuad(0, frame * G2_ICON,
-    G2_ICON, G2_ICON, iw, ih)
+  local marker, markerRow = self:heldMarkerFor(game, mon)
   -- trueColor art is exempt here for the reason it is exempt on the pic:
   -- a sheet that is already real colour is the colour it means to be, and
   -- Gold's four-shade palette bound over it would destroy that.  Gen 1
   -- says the same thing to PaletteFX with a rect instead of a nil palette.
   local colors = not trueColor and self:iconColors(game) or nil
+  if not marker then
+    local quad = love.graphics.newQuad(0, frame * G2_ICON,
+      G2_ICON, G2_ICON, iw, ih)
+    self:withColors(colors, function()
+      love.graphics.draw(image, quad, x, y)
+    end)
+    return
+  end
+  -- A holder draws three of the icon's four 8x8 tiles and the marker in the
+  -- fourth, bottom-left -- REPLACED, not covered: the marker tile is
+  -- transparent in places and the icon would show through it
+  -- (src/ui/gen2/PartyMenu.lua:911-926).  The marker is OAM like the icon, so
+  -- it always wears the party menu's palette, even over trueColor icon art
+  -- that opts out of it.
+  local top = frame * G2_ICON
+  local half = G2_ICON / 2
   self:withColors(colors, function()
-    love.graphics.draw(image, quad, x, y)
+    love.graphics.draw(image,
+      love.graphics.newQuad(0, top, half, half, iw, ih), x, y)
+    love.graphics.draw(image,
+      love.graphics.newQuad(half, top, half, half, iw, ih), x + half, y)
+    love.graphics.draw(image,
+      love.graphics.newQuad(half, top + half, half, half, iw, ih),
+      x + half, y + half)
+  end)
+  local mw, mh = marker:getDimensions()
+  self:withColors(self:iconColors(game), function()
+    love.graphics.draw(marker,
+      love.graphics.newQuad(0, markerRow * half, half, half, mw, mh),
+      x, y + half)
   end)
 end
 

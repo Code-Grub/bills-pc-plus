@@ -512,6 +512,19 @@ return function(mod)
     local ok, err = pcall(self.engine.drawIcon, self.engine, self.game, mon,
       x, y, animated)
     G.draw = realDraw
+    -- The shiny mark rides every icon the grid draws -- the box, the deposit
+    -- party row and the page slide -- because they all come through here.  It
+    -- is plain black and white fills, drawn after the icon's own palette
+    -- binding has closed, so Gold's shader cannot recolour it and Gen 1's
+    -- palette pass just maps the two shades.  An egg is left alone: its
+    -- shininess is the hatchling's, and nothing on the cart shows it yet.
+    if ok and not mon.isEgg and Stats.isShiny(mon.dvs) then
+      for _, r in ipairs(Layout.SHINY_MARK) do
+        if r.black then G.setColor(0, 0, 0, 1) else G.setColor(1, 1, 1, 1) end
+        G.rectangle("fill", x + r.x, y + r.y, r.w, 1)
+      end
+      G.setColor(1, 1, 1, 1)
+    end
     unclip(prev)
     if not ok then error(err, 0) end
   end
