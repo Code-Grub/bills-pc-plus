@@ -20,16 +20,6 @@ Bill's PC+ replaces the built-in PC box screen with a grid interface. Browse and
 rearrange your boxes freely. It works on Red, Blue and Yellow, and on Gold,
 Silver and Crystal.
 
-<p align="center">
-  <img src="images/demo_box_v8.gif" width="480" alt="Box view: the 5x4 grid with gaps beside the selected Pokemon's sprite and stats, showing the cursor blink, MOVE and paging"/><br/>
-  <sub>Box view: free paging, grab-and-place with gaps</sub>
-</p>
-
-<p align="center">
-  <img src="images/demo_deposit_v8.gif" width="480" alt="Deposit view: the party row under the box grid, showing the party cursor and destination paging"/><br/>
-  <sub>Deposit view: party row and destination paging</sub>
-</p>
-
 ## Features
 
 - **Free box paging:** move the cursor off the left or right edge of the grid
