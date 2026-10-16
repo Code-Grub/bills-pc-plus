@@ -38,10 +38,10 @@ T.check(not B.whiteText("BOGUS"), "an unknown type takes the black label")
 -- Geometry.  Widths are whatever the label measures plus the pill's padding.
 T.eq(L.pillWidth(64), 64 + 2 * L.BADGE_PAD, "a pill is its label plus padding each side")
 
--- one pill starts at the strip's left edge plus the margin
+-- one pill is centred on the strip (the geometry is in polish_test.lua)
 local one = L.badgeSpans({ L.pillWidth(32) })
 T.eq(#one, 1, "one type, one span")
-T.eq(one[1].x, L.STATS_X + L.BADGE_MARGIN, "the first pill starts at the margin")
+T.eq(one[1].x, L.STRIP_CX - L.pillWidth(32) / 2, "the pill is centred on the strip")
 T.eq(one[1].w, L.pillWidth(32), "and keeps its width")
 
 -- two pills sit on one line, a gap apart, never overlapping
@@ -50,11 +50,13 @@ T.eq(#two, 2, "two types, two spans")
 T.eq(two[2].x, two[1].x + two[1].w + L.BADGE_GAP, "the second follows after the gap")
 
 -- The worst pair either generation prints is ELECTRIC/FLYING (Zapdos); at
--- 8px a glyph it has to end inside box B's interior (x=152).
+-- 8px a glyph it has to end inside box B's interior (x=152).  Centred it
+-- spans 14..146: two pixels past the columns' right edge, four inside the frame.
 local zap = L.badgeSpans({ L.pillWidth(8 * 8), L.pillWidth(6 * 8) })
 local right = zap[2].x + zap[2].w
 T.check(right <= 152, "the widest pair ends inside the frame (" .. right .. ")")
-T.eq(right, 144, "and on the stats columns' right edge, not tighter")
+T.check(zap[1].x >= L.STATS_X, "and starts inside it")
+T.eq(right, 146, "centred, so two pixels past the stats columns")
 
 -- the pill is 12px tall, and fits the blank row plus the type row (16px)
 T.eq(L.BADGE_H, 12, "a pill is 12px tall")

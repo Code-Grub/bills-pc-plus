@@ -118,8 +118,17 @@ end
 local function drawn(grid)
   local realG = love.graphics
   local rects = {}
+  -- A draw onto a canvas is the panel measuring the picture's ink, not the
+  -- picture on screen, so it is not a blit.  push("all")/pop restore the
+  -- target the way LOVE does.
+  local target, saved = nil, {}
   love.graphics = setmetatable({
+    push = function(...) saved[#saved + 1] = target or false; return realG.push(...) end,
+    pop = function(...) target = table.remove(saved) or nil; return realG.pop(...) end,
+    setCanvas = function(c) target = c end,
+    getCanvas = function() return target end,
     draw = function(img, x, y, r, sx, sy)
+      if target then return end
       if type(img) ~= "table" or not img.art then return end
       local w, h = img:getDimensions()
       sx = sx or 1
@@ -163,8 +172,9 @@ end
 do
   builds, nextArt = 0, art(64, 40)
   local rects = drawn(openGrid({ newMon(9) }))
-  T.eq(fmt(rects[1]), "96,45 56x35",
-    "wide art scales by its width and keeps its proportions")
+  -- 35px of art in the 56px area under the plate: 10px above, 11 below
+  T.eq(fmt(rects[1]), "96,34 56x35",
+    "wide art scales by its width, keeps its proportions, and centres")
 end
 
 do
@@ -173,14 +183,16 @@ do
   T.eq(fmt(rects[1]), "100,24 48x56", "art that fits is drawn at its own size")
 end
 
--- ------- PC HEALS: the HP line is gone, so the sprite stands one row lower
+-- ------- PC HEALS: the HP line is gone, so the sprite has one more row to centre in
 do
   builds, nextArt = 0, art(48, 56)
   run.loader.modOptions.bills_pc_plus = { type_badges = false, pc_heals = true }
   local grid = openGrid({ newMon(9) })
-  T.eq(fmt(drawn(grid)[1]), "100,32 48x56",
-    "with PC HEALS on a 56px picture stands on the freed HP row")
-  T.eq(marks[#marks], "100,32 48x56", "and its full colour follows it down")
+  -- the freed row makes the area 64px, so a 56px picture floats 4px off the
+  -- floor rather than standing on it
+  T.eq(fmt(drawn(grid)[1]), "100,28 48x56",
+    "with PC HEALS on a 56px picture centres in the freed HP row's space")
+  T.eq(marks[#marks], "100,28 48x56", "and its full colour follows it")
   run.loader.modOptions.bills_pc_plus = { type_badges = false, pc_heals = false }
   T.eq(fmt(drawn(grid)[1]), "100,24 48x56",
     "turning it off lifts the picture back on the very next draw")

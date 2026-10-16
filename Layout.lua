@@ -61,6 +61,10 @@ Layout.PANEL_W, Layout.PANEL_H = 56, 64
 -- is free everywhere, and a floor-baseline 56px sprite clears it exactly
 Layout.PLATE_Y = 8
 
+-- The panel's free space starts where the plate ends, and the sprite is
+-- centred between here and the floor it used to stand on (spriteY).
+Layout.SPRITE_AREA_TOP = Layout.PLATE_Y + 16
+
 -- horizontal centre of the sprite panel; consumers subtract half the
 -- sprite's own width so sprites of any size centre correctly
 Layout.SPRITE_CX = 124
@@ -76,9 +80,36 @@ Layout.SPRITE_BASELINE = 80
 Layout.SPRITE_BASELINE_NO_HP = 88
 
 -- `baseline` is optional: omit it for the layout that keeps the HP line.
+-- The y is where a pic of this height stands ON the floor: the unmeasured
+-- fallback and the lowest spriteY will ever return.  The panel takes its x
+-- from here and its y from spriteY.
 function Layout.spritePos(pw, ph, baseline)
   return Layout.SPRITE_CX - math.floor(pw / 2),
     (baseline or Layout.SPRITE_BASELINE) - ph
+end
+
+-- Where the pic's top edge goes, given where its ink sits inside it.
+--
+-- `inkY` and `inkH` are the visible art's top and height within the pic
+-- (after any fitScale shrink), or nil when they could not be measured, in
+-- which case the pic stands on the floor exactly as it always did.
+--
+-- It is the INK that is centred in the space between the plate and the floor,
+-- not the pic's block.  Gen 1's front pics are tile blocks with the art
+-- bottom-aligned: Diglett is a 40px block holding 30px of mon, and centring
+-- the block would leave it 5px lower than it looks it should be.
+--
+-- It never goes lower than standing on the floor, so art whose ink sits at the
+-- top of its block is not pushed below the frame, and it never rises above the
+-- plate's bottom edge, so nothing is hidden under the plate that was not
+-- already.  Both limits keep the ink inside spriteZone's rows.
+function Layout.spriteY(ph, inkY, inkH, baseline)
+  baseline = baseline or Layout.SPRITE_BASELINE
+  local standing = baseline - ph
+  if not (inkY and inkH) then return standing end
+  local area = baseline - Layout.SPRITE_AREA_TOP
+  local top = Layout.SPRITE_AREA_TOP + math.max(0, math.floor((area - inkH) / 2))
+  return math.min(top - inkY, standing)
 end
 
 -- The uniform scale that fits a w x h picture inside a limit x limit square.
@@ -140,18 +171,23 @@ end
 -- wrong.  SummaryMenu carves the same block back out of its own screen with
 -- the species palette (src/ui/SummaryMenu.lua:32); this is that rect here.
 --
--- Fixed at 7x7 whatever the pic's real size, exactly as SummaryMenu's is: a
--- Gen 1 front pic is at most 56x56 and spritePos centres anything smaller
--- inside the same block, so a 5x5 pic's margin is bare white either way.
--- Sitting on SPRITE_BASELINE under a PLATE_Y plate it clears, the block owns
--- no chrome -- and shade 0/3 stay white/black across every named palette, so
--- the name and level above it would not shift even if it did.
+-- Fixed whatever the pic's real size, exactly as SummaryMenu's is: seven
+-- tiles across, the panel's width, and every row from the plate's bottom edge
+-- (SPRITE_AREA_TOP) to the floor.  That is the whole area spriteY can place a
+-- pic in, so a pic centred anywhere in it is coloured, and a smaller pic's
+-- margin is bare white either way.  With the HP line kept the area is seven
+-- rows, exactly a 7x7; with it gone it is eight, and a 7x7 floats in the
+-- extra one.  The block owns no chrome -- the plate ends where it starts --
+-- and shade 0/3 stay white/black across every named palette, so the name and
+-- level above it would not shift even if it did.
 Layout.SPRITE_MAX = 56
 
 function Layout.spriteZone(baseline)
-  local x, y = Layout.spritePos(Layout.SPRITE_MAX, Layout.SPRITE_MAX, baseline)
-  local tx, ty = math.floor(x / 8), math.floor(y / 8)
-  return tx, ty, tx + Layout.SPRITE_MAX / 8 - 1, ty + Layout.SPRITE_MAX / 8 - 1
+  baseline = baseline or Layout.SPRITE_BASELINE
+  local x = Layout.spritePos(Layout.SPRITE_MAX, Layout.SPRITE_MAX, baseline)
+  local tx = math.floor(x / 8)
+  return tx, Layout.SPRITE_AREA_TOP / 8, tx + Layout.SPRITE_MAX / 8 - 1,
+    baseline / 8 - 1
 end
 
 -- Below the stats rather than above them, so the stats strip never shifts
@@ -296,18 +332,26 @@ Layout.STATS_DV_SHARED_CX = 118
 -- what keeps doing the blank row's job of setting the type apart from the DV
 -- table, so the pill does not run flush under the numbers.
 --
--- Widths follow the label (see TypeBadges.pillWidth), so the room is spent
--- rather than reserved: the widest pair either generation prints is
--- ELECTRIC/FLYING (Zapdos), and
+-- Widths follow the label (see TypeBadges.pillWidth), and the pills are
+-- centred on the strip rather than hung from its left edge.  A single pill
+-- under a four-column table left the whole right half of the row empty and
+-- read as a label for the first column; centred, it sits under the table it
+-- describes.  The widest pair either generation prints is ELECTRIC/FLYING
+-- (Zapdos), and
 --
---   STATS_X 8 + margin 4 + [4 + 64 + 4] + gap 4 + [4 + 48 + 4] = 144
+--   [4 + 64 + 4] + gap 4 + [4 + 48 + 4] = 132, centred on x=80 -> 14..146
 --
--- lands the last pill on x=144, the same right edge the stats columns end on,
--- so the widest case is flush with the table above it and no tighter.
+-- so it ends two pixels past the columns' right edge (144) and still four
+-- inside the frame (152).  It was flush with the columns when left-aligned;
+-- centring trades that two pixels for a row that reads as a unit.
 Layout.BADGE_H = 12
 Layout.BADGE_PAD = 4     -- label to pill edge, each side
 Layout.BADGE_GAP = 4     -- between the two pills
-Layout.BADGE_MARGIN = 4  -- strip's left edge to the first pill
+
+-- Box B's interior is x=8..152, so its middle is 80.  The pills centre on it
+-- rather than on the stat columns' middle (84, which has the label gutter on
+-- its left): the frame is the thing the eye measures the row against.
+Layout.STRIP_CX = 80
 
 -- A pill is its label plus padding on each side.
 function Layout.pillWidth(labelWidth)
@@ -315,14 +359,56 @@ function Layout.pillWidth(labelWidth)
 end
 
 -- The pills' x and width for a list of pill widths, left to right on one
--- line.  Pure, so the arithmetic is testable without an engine.
+-- line, the group centred on STRIP_CX.  Pure, so the arithmetic is testable
+-- without an engine.  An odd total (a proportional font pack) is floored to
+-- a whole pixel, and the group never starts left of the strip's own edge.
 function Layout.badgeSpans(widths)
-  local spans, x = {}, Layout.STATS_X + Layout.BADGE_MARGIN
+  local total = -Layout.BADGE_GAP
+  for _, w in ipairs(widths) do total = total + w + Layout.BADGE_GAP end
+  local x = math.max(Layout.STATS_X, Layout.STRIP_CX - math.floor(total / 2))
+  local spans = {}
   for i, w in ipairs(widths) do
     spans[i] = { x = x, w = w }
     x = x + w + Layout.BADGE_GAP
   end
   return spans
+end
+
+-- The column grid: a 1px line in the middle of each gap between two stat
+-- fields, from the header row down through the DV row.
+--
+-- The lines are drawn in air the table already had, so nothing moves.  Right-
+-- aligned digits ink up to one pixel short of their field's edge, so the
+-- middle of the EMPTY run is one pixel left of the middle of the gap between
+-- the fields: Gen 1's gaps are 48..56, 80..88 and 112..120 and the empty
+-- columns are 47..55, 79..87 and 111..119, which puts the lines on 51, 83 and
+-- 115 with 4px of air each side.  Gen 2's gaps are 4px and its lines land on
+-- 33, 61, 89 and 117 with about 2px each side, which is why three-digit
+-- values there read as `169|239|193` -- accepted, having seen it.
+--
+-- `centres` are the x's of any DV cell centred across a gap (Gen 2's shared
+-- Special DV, STATS_DV_SHARED_CX).  A line through that gap would cut the
+-- number, so it stops above the DV row while every other line runs through
+-- it.  The data decides, not the generation.
+--
+-- `withDVs` is whether the DV row is on screen at all: deposit mode's party
+-- frame covers it, and the option can hide it.  The result is one table per
+-- line, {x, y, h}, so the draw is a loop of 1px-wide fills.
+function Layout.gridLines(cols, colW, centres, withDVs)
+  local lines = {}
+  for i = 1, #cols - 1 do
+    local left, right = cols[i] + colW, cols[i + 1]
+    local rows = withDVs and 3 or 2
+    for _, c in ipairs(centres or {}) do
+      if c >= left and c <= right then rows = 2 end
+    end
+    lines[i] = {
+      x = math.floor((left + right) / 2) - 1,
+      y = Layout.STATS_Y,
+      h = rows * Layout.ROW - 1,   -- the row's own blank last pixel stays blank
+    }
+  end
+  return lines
 end
 
 -- The pill's top edge.  The type row is the strip's last (row 4) with the
@@ -333,6 +419,29 @@ function Layout.badgeY(dvsHidden)
   if dvsHidden then blankRow = blankRow - Layout.ROW end
   return blankRow + (2 * Layout.ROW - Layout.BADGE_H) / 2
 end
+
+-- The MOVES PAGE: SELECT flips the strip from the stats table to the focused
+-- Pokemon's moves, one per row, each behind a small square in its type's
+-- colour.  Four rows of the strip's five, so box view only -- deposit mode's
+-- party frame (box C) covers everything below the third row.
+--
+-- The longest move name either generation prints is 12 glyphs (SELFDESTRUCT),
+-- and 12 x 8 from MOVE_NAME_X ends at 116, well inside the frame.  There is no
+-- PP column: PC HEALS keeps a boxed Pokemon's PP full, so the number would
+-- never say anything.
+Layout.MOVE_SLOTS = 4
+Layout.MOVE_CHIP = 6
+Layout.MOVE_CHIP_X = Layout.STATS_X + 3   -- 3px in from the strip's edge
+Layout.MOVE_NAME_X = Layout.STATS_X + 12  -- chip, then 3px of air
+
+function Layout.moveRowY(i)
+  return Layout.STATS_Y + (i - 1) * Layout.ROW
+end
+
+-- Which page the strip is on, as two 3x3 squares in the margin right of the
+-- stat columns (the columns end at 144, the frame's interior at 152): the
+-- filled one is the current page, the hollow one the other.
+Layout.PAGE_DOTS = { x = 147, size = 3, ys = { 98, 103 } }
 
 -- The shiny mark on a grid icon: two diamonds in the cell's top-right corner,
 -- a large one and a small one up and to its right, each a white fill inside a

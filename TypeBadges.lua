@@ -129,4 +129,18 @@ function TypeBadges.drawPill(name, label, x, y, w, h)
   gfx.setColor(1, 1, 1, 1)
 end
 
+-- A chip: a square of `size` px in the type's colour, edged darker, as a
+-- move's type marker on the MOVES PAGE.  The caller exempts it from palette
+-- shading (PaletteFX.markTrueColor) the way the pills are.
+function TypeBadges.drawChip(name, x, y, size)
+  local gfx = love.graphics
+  local c = TypeBadges.color(name)
+  local r, g, b = c[1] / 255, c[2] / 255, c[3] / 255
+  gfx.setColor(r * 0.5, g * 0.5, b * 0.5, 1)
+  gfx.rectangle("fill", x, y, size, size)
+  gfx.setColor(r, g, b, 1)
+  gfx.rectangle("fill", x + 1, y + 1, size - 2, size - 2)
+  gfx.setColor(1, 1, 1, 1)
+end
+
 return TypeBadges

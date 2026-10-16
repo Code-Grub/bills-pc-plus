@@ -53,6 +53,17 @@ return {
     label = "TYPE BADGES",
     default = true,
   },
+  -- The MOVES PAGE: SELECT flips box view's stats strip to the focused
+  -- Pokemon's four moves, with a pair of dots in the corner saying which page
+  -- it is.  Default ON because the dots are the only trace of it until SELECT
+  -- is pressed, and the row exists for the player who wants the strip exactly
+  -- as it was.  Gen 1 only; Gold, Silver and Crystal have no such page yet.
+  {
+    key = "moves_page",
+    type = "toggle",
+    label = "MOVES PAGE",
+    default = true,
+  },
   -- PC HEALS makes the box what it is in the later games: a Pokemon that goes
   -- into the PC comes out at full HP, cured, with its PP back.  Gold already
   -- does this -- its box_struct has nowhere to keep HP -- so on Gen 2 the

@@ -102,9 +102,12 @@ local _, y88 = L.spritePos(56, 56, L.SPRITE_BASELINE_NO_HP)
 T.eq(y88 - y80, L.ROW, "without the HP line the sprite stands one row lower")
 T.eq(L.SPRITE_BASELINE_NO_HP % 8, 0,
   "and still tile-aligned, so its SGB zone lands on the sprite")
+-- The sprite is centred in the area now, so a 7x7 can sit anywhere in the
+-- freed row's space and the zone covers all of it: from the plate's bottom
+-- edge to the floor, eight rows instead of seven.
 local zx1, zy1, zx2, zy2 = L.spriteZone(L.SPRITE_BASELINE_NO_HP)
-local _, py = L.spritePos(L.SPRITE_MAX, L.SPRITE_MAX, L.SPRITE_BASELINE_NO_HP)
-T.eq(zy1 * 8, py, "the zone starts where the sprite does")
-T.eq((zy2 + 1) * 8, py + L.SPRITE_MAX, "and ends where it ends")
+T.eq(zy1 * 8, L.SPRITE_AREA_TOP, "the zone starts where the area does")
+T.eq((zy2 + 1) * 8, L.SPRITE_BASELINE_NO_HP, "and ends on the freed floor")
+T.eq(zy2 - zy1 + 1, 8, "eight rows, one more than the HP line leaves")
 
 T.finish("bills_pc_plus pc_heals")
