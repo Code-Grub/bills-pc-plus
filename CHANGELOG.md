@@ -3,6 +3,21 @@
 Written in the style described in [docs/changelog-style.md](docs/changelog-style.md):
 what changed for the player, with the reasoning left in the commit history.
 
+## 0.21.0
+
+- A new MOVES PAGE, on by default: press SELECT in box view to swap the stats
+  strip for the selected Pokemon's four moves, each with a chip in its type's
+  colour. Two small squares in the strip's corner show which page you are on,
+  and the page stays open as you move the cursor. Red, Blue and Yellow only
+  for now.
+- The sprite beside the grid now sits in the middle of the space under its
+  name, instead of standing on the floor of the frame, so small Pokemon no
+  longer look dropped.
+- The type badges are centred under the stats, and thin lines now separate the
+  stat columns. This applies to every game. On Gold, Silver and Crystal the
+  line between the two Special columns stops above the DV row, so it does not
+  cut the shared Special DV.
+
 ## 0.20.0
 
 - On Gold, Silver and Crystal, a Pokemon holding an item now shows the party
