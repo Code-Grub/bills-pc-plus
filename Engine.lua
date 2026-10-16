@@ -27,6 +27,12 @@ end
 
 -- STATS on a stored mon opens the summary screen, which is a different id
 -- per generation (Screens.GEN2_IDS in src/ui/Screens.lua).
+-- The MOVES PAGE is Gen 1's for now: Gold's strip is the five-column one and
+-- has no spare row, and its design has not been drawn yet.
+function Engine:hasMovesPage()
+  return not self.gen2
+end
+
 function Engine:summaryScreenId()
   return self.gen2 and "Gen2SummaryMenu" or "SummaryMenu"
 end

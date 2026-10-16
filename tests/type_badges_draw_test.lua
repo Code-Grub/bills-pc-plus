@@ -191,8 +191,8 @@ if e and f then
 end
 T.eq(#d.marks, 1, "the pills' rectangle is exempted from palette shading once")
 if d.marks[1] then
-  T.check(d.marks[1].x <= L.STATS_X + L.BADGE_MARGIN and d.marks[1].y <= py
-    and d.marks[1].x + d.marks[1].w >= 144 and d.marks[1].y + d.marks[1].h >= py + L.BADGE_H,
+  T.check(d.marks[1].x <= 14 and d.marks[1].y <= py
+    and d.marks[1].x + d.marks[1].w >= 146 and d.marks[1].y + d.marks[1].h >= py + L.BADGE_H,
     "and it covers both pills")
 end
 

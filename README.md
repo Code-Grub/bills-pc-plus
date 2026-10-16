@@ -28,6 +28,11 @@ Silver and Crystal.
   slot. Other Pokemon stay where they are, and moves between boxes just work.
 - **Art and stats panel:** the selected Pokemon's sprite and stats sit beside
   the grid.
+- **Moves page:** press `SELECT` in box view to swap the stats strip for the
+  selected Pokemon's four moves, each with a chip in its type's colour. The two
+  dots in the strip's corner show which page you are on, and the page stays
+  open as you move the cursor. Red, Blue and Yellow only for now. On by
+  default; turn it off in OPTIONS → MODS → BILL'S PC PLUS → MOVES PAGE.
 - **DV display:** the hidden DV numbers on the stats strip. On by default;
   turn it off in OPTIONS → MODS → BILL'S PC PLUS → DV DISPLAY.
 - **PC heals:** a Pokemon that goes into the PC comes out at full HP, cured,
@@ -77,6 +82,7 @@ that view.
 | D-pad | Move the cursor within the grid |
 | Left/Right at a grid edge | Page to the previous/next box |
 | A on a Pokemon | Cursor menu: MOVE / WITHDRAW / STATS / RELEASE / CANCEL |
+| SELECT | Swap the stats strip for the moves page and back (Red, Blue, Yellow) |
 | A while carrying | Drop: swap if the slot is occupied, place it in that slot if empty |
 | B | Cancel carry; if not carrying, back to the menu |
 

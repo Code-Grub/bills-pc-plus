@@ -775,6 +775,31 @@ return function(mod)
     return cached.img, trueColor
   end
 
+  -- Where the visible art sits inside the panel's picture, measured once per
+  -- mon.  Per mon rather than per image on purpose: an animated pic is a new
+  -- image every frame, and measuring each would re-centre the mon on its own
+  -- motion and flatten the animation.  The first frame fixes the offset.
+  --
+  -- A method rather than another local because this file is close to
+  -- LuaJIT's 200-local ceiling.  nil when the pixels cannot be read, and the
+  -- caller then stands the pic on the floor.
+  function Screen:panelInk(mon, sprite)
+    local cache = self._inkOf
+    if not cache then
+      cache = setmetatable({}, { __mode = "k" })
+      self._inkOf = cache
+    end
+    local hit = cache[mon]
+    if hit ~= nil then return hit or nil end
+    local iw, ih = sprite:getDimensions()
+    local G = love.graphics
+    -- artBoundsFor reads a frame out of a quad; the whole picture is one
+    local whole = { getViewport = function() return 0, 0, iw, ih end }
+    local found = artBoundsFor(G, G.draw, sprite, whole)
+    cache[mon] = found or false
+    return found or nil
+  end
+
   local function drawPanel(self)
     local mon = self:focused()
     if not mon then return end
@@ -783,11 +808,17 @@ return function(mod)
     self.spriteTrueColor = (sprite and trueColor) and true or false
     if sprite then
       -- Art bigger than a Gen 1 pic is scaled down to the panel's 56px, and
-      -- the scaled size is what gets centred and stood on the floor.
+      -- the scaled size is what gets centred across and placed down.
       local pw, ph = sprite:getDimensions()
       local k = Layout.fitScale(pw, ph, Layout.SPRITE_MAX)
       local dw, dh = pw * k, ph * k
-      local px, py = Layout.spritePos(dw, dh, spriteBaseline())
+      -- Centred by its ink, in the space between the plate and the floor it
+      -- used to stand on.  Where the ink cannot be read the pic stands on the
+      -- floor, exactly as before (Layout.spriteY).
+      local ink = self:panelInk(mon, sprite)
+      local px = Layout.spritePos(dw, dh, spriteBaseline())
+      local py = Layout.spriteY(dh, ink and ink.y * k, ink and ink.h * k,
+        spriteBaseline())
       -- The pic is grayscale art on BOTH generations, and each colours it
       -- its own way.  Gen 1's SGB zone does it after the fact and this
       -- call must stay the bare draw it always was, so the seam hands
@@ -897,6 +928,59 @@ return function(mod)
     Font.draw(text, cx - math.floor(Font.width(text) / 2), y)
   end
 
+  -- The MOVES PAGE.  It lives where the stats table does, in box view only:
+  -- deposit mode's party frame covers the strip below its third row.  A
+  -- method rather than another local because this file is close to LuaJIT's
+  -- 200-local ceiling.  Read per call, same as showDVs, so the manager's
+  -- toggle lands on the next frame.
+  function Screen:movesPageOn()
+    return self.mode ~= "deposit" and self.engine:hasMovesPage()
+      and mod.options:get("moves_page") == true
+  end
+
+  -- Two squares in the strip's top-right margin; the filled one is the page
+  -- the strip is on.  Hollow is the same 3x3 with its middle left out.
+  function Screen:drawPageDots()
+    local dots = Layout.PAGE_DOTS
+    local page = self.stripPage or 1
+    love.graphics.setColor(0, 0, 0, 1)
+    for i, y in ipairs(dots.ys) do
+      if i == page then
+        love.graphics.rectangle("fill", dots.x, y, dots.size, dots.size)
+      else
+        love.graphics.rectangle("fill", dots.x, y, dots.size, 1)
+        love.graphics.rectangle("fill", dots.x, y + dots.size - 1, dots.size, 1)
+        love.graphics.rectangle("fill", dots.x, y + 1, 1, dots.size - 2)
+        love.graphics.rectangle("fill", dots.x + dots.size - 1, y + 1, 1, dots.size - 2)
+      end
+    end
+  end
+
+  -- One line per move: a chip in the move's type colour, then its name.  An
+  -- empty slot is a dash, as the summary screen draws it.  The chips are
+  -- coloured rectangles, so Gen 1's palette pass has to be told to leave them
+  -- alone, exactly as it is for the type pills.
+  function Screen:drawMoves(mon)
+    local data = self.session.data
+    for i = 1, Layout.MOVE_SLOTS do
+      local y = Layout.moveRowY(i)
+      local mv = mon.moves and mon.moves[i]
+      local def = mv and data.moves and data.moves[mv.id]
+      if mv then
+        if def and def.type then
+          TypeBadges.drawChip(TypeChart.displayName(def.type, data),
+            Layout.MOVE_CHIP_X, y + 1, Layout.MOVE_CHIP)
+          PaletteFX.markTrueColor(Layout.MOVE_CHIP_X, y + 1,
+            Layout.MOVE_CHIP, Layout.MOVE_CHIP)
+        end
+        love.graphics.setColor(0, 0, 0, 1)
+        Font.draw(def and def.name or tostring(mv.id), Layout.MOVE_NAME_X, y)
+      else
+        Font.draw("-", Layout.MOVE_NAME_X, y)
+      end
+    end
+  end
+
   local function drawStats(self)
     local mon = self:focused()
     local row = Layout.ROW
@@ -910,6 +994,10 @@ return function(mod)
     -- on the plate, where there is room for it.
     local countText = ("%d/%d"):format(self.session:count(), Boxes.CAPACITY)
     Font.draw(countText, 48 - #countText * 4, Layout.COUNT_Y)
+    -- Before the empty-cell return, so a gap in the box still says which page
+    -- the strip is on.
+    local pageOn = self:movesPageOn()
+    if pageOn then self:drawPageDots() end
     if not mon then return end
     -- The shiny mark is a storage fact the vanilla PC never showed -- a
     -- shiny is invisible until you already know its DVs.  The mark is a
@@ -927,6 +1015,10 @@ return function(mod)
       love.graphics.rectangle("fill", mx + 2, my, 1, 1)
       love.graphics.rectangle("fill", mx, my + 1, 3, 1)
       love.graphics.rectangle("fill", mx + 2, my + 2, 1, 1)
+    end
+    if pageOn and self.stripPage == 2 then
+      self:drawMoves(mon)
+      return
     end
     local stats = mon.stats
     if stats then
@@ -946,6 +1038,20 @@ return function(mod)
         local value = stats[strip.keys[i]]
         drawRight(value and tostring(value) or NO_STAT, right,
           Layout.STATS_Y + row)
+      end
+      -- The column grid, drawn in the air between the fields.  It runs
+      -- through the DV row only where that row is on screen (deposit mode's
+      -- party frame covers it, and the option can hide it) and only where no
+      -- DV is centred across the gap -- Gen 2's shared Special DV straddles
+      -- SA/SD, and the seam says so by giving that cell a `centre`.
+      local centres = {}
+      for _, cell in ipairs(strip.dvs) do
+        if cell.centre then centres[#centres + 1] = cell.centre end
+      end
+      love.graphics.setColor(0, 0, 0, 1)
+      for _, ln in ipairs(Layout.gridLines(strip.cols, strip.width, centres,
+          self.mode ~= "deposit" and showDVs())) do
+        love.graphics.rectangle("fill", ln.x, ln.y, 1, ln.h)
       end
     end
     -- The type line sits under SPD/SPC, and the DV spread under that -- both
@@ -1182,6 +1288,13 @@ return function(mod)
   -- Edge paging is how a carried mon crosses a box boundary, and it costs
   -- no buttons: the Game Boy pad has no L or R (src/core/Input.lua:9-21).
   local function updateBoxMode(self, input)
+    -- SELECT turns the strip's page.  Not "a" (the cursor menu) and not a
+    -- direction (the grid), and the Game Boy has no other free button.
+    if input:wasPressed("select") and self:movesPageOn() then
+      self.stripPage = self.stripPage == 2 and 1 or 2
+      return
+    end
+
     if input:wasPressed("a") then
       if self.session.carry then
         local ok, reason = self.session:drop(self.session.save.currentBox,
